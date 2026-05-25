@@ -19,4 +19,8 @@ func Execute() error {
 func init() {
 	rootCmd.SetOut(os.Stdout)
 	rootCmd.SetErr(os.Stderr)
+	rootCmd.AddGroup(
+		&cobra.Group{ID: "core", Title: "Core Commands:"},
+		&cobra.Group{ID: "setup", Title: "Setup & Extra:"},
+	)
 }

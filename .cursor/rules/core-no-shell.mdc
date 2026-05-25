@@ -1,0 +1,42 @@
+---
+description: core package is credential-agnostic library code for cost computation
+globs: core/**/*
+alwaysApply: false
+---
+
+# core: cost computation only
+
+The `core/` module is shared library code for **computing costs** from credentials the caller provides. It must not know about local machine configuration.
+
+## Forbidden in core/
+
+- `os/exec`, shelling out, or references to external CLIs
+- `~/.aws/credentials`, `~/.aws/config`, finops config files, or profile names
+- Authentication methods (SAML, profile), login flows, or credential file I/O
+- Naming specific binaries in comments, errors, or constants
+
+## Where local configuration belongs
+
+- **`cli/internal/aws`** — credentials files, STS validation, SAML/profile login, assume-role, Organizations lookups
+- **`cli/internal/awsauth`** — auth-method selection and ensure orchestration
+- **`cli/internal/configstore`** — finops config file
+
+## Patterns
+
+```go
+// ✅ GOOD — caller passes an authenticated aws.Config
+type AccountTarget struct {
+    AccountID  string
+    AWSConfig  aws.Config
+}
+
+// ✅ GOOD — optional hook for org account names (uses passed Config, not files)
+type AWSFetchOptions struct {
+    ListAccountNames func(context.Context, aws.Config) (map[string]string, error)
+}
+
+// ❌ BAD — reading profiles or credentials paths in core
+path, _ := DefaultCredentialsPath()
+```
+
+`core/cost` calls AWS Cost Explorer with `AccountTarget.AWSConfig` only.

@@ -7,7 +7,7 @@ build:
 	go build -o bin/finops ./cli/cmd/finops
 
 run: build
-	./bin/finops hello
+	./bin/finops demo hello
 
 clean:
 	rm -rf bin dist

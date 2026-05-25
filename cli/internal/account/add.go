@@ -1,0 +1,98 @@
+package account
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
+	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
+)
+
+var errProviderNotImplemented = errors.New("account provider not implemented")
+
+// AWSEnsureFunc performs AWS credential ensure (injectable for tests).
+type AWSEnsureFunc func(context.Context, awsauth.EnsureOptions) (awsconfig.Result, error)
+
+// AddAWSOptions configures AddAWS.
+type AddAWSOptions struct {
+	AccountID     string
+	Alias         string
+	Ensure        AWSEnsureFunc
+	EnsureOptions awsauth.EnsureOptions
+}
+
+// AddResult is returned after a successful AWS account login.
+type AddResult struct {
+	Provider  Provider
+	AccountID string
+	ARN       string
+	Profile   string
+	Refreshed bool
+}
+
+// AddAWS logs into an AWS payer account and verifies the session account ID.
+func AddAWS(ctx context.Context, opts AddAWSOptions) (AddResult, error) {
+	accountID := strings.TrimSpace(opts.AccountID)
+	if err := ValidateAWSAccountID(accountID); err != nil {
+		return AddResult{}, err
+	}
+
+	ensure := opts.Ensure
+	if ensure == nil {
+		ensure = awsauth.EnsureAccountCredentials
+	}
+
+	ensureOpts := opts.EnsureOptions
+	ensureOpts.AccountName = accountID
+	ensureOpts.ProfileNames = awsProfileNames(accountID, opts.Alias, ensureOpts.ProfileNames)
+
+	res, err := ensure(ctx, ensureOpts)
+	if err != nil {
+		return AddResult{}, err
+	}
+
+	if res.AccountID != accountID {
+		return AddResult{}, fmt.Errorf("logged in as account %s, expected %s", res.AccountID, accountID)
+	}
+
+	profile := awsconfig.SanitizeProfileName(accountID)
+	if res.Profile != "" {
+		profile = res.Profile
+	}
+
+	return AddResult{
+		Provider:  ProviderAWS,
+		AccountID: accountID,
+		ARN:       res.ARN,
+		Profile:   profile,
+		Refreshed: res.Refreshed,
+	}, nil
+}
+
+// AddOptions configures Add for any provider.
+type AddOptions struct {
+	Provider      Provider
+	AccountID     string
+	Alias         string
+	AWSEnsure     AWSEnsureFunc
+	AWSEnsureOpts awsauth.EnsureOptions
+}
+
+// Add logs into a cloud payer account.
+func Add(ctx context.Context, opts AddOptions) (AddResult, error) {
+	switch opts.Provider {
+	case ProviderAWS:
+		return AddAWS(ctx, AddAWSOptions{
+			AccountID:     opts.AccountID,
+			Alias:         opts.Alias,
+			Ensure:        opts.AWSEnsure,
+			EnsureOptions: opts.AWSEnsureOpts,
+		})
+	case ProviderGCP:
+		return AddResult{}, fmt.Errorf("%w: gcp", errProviderNotImplemented)
+	default:
+		return AddResult{}, fmt.Errorf("unknown provider %q", opts.Provider)
+	}
+}

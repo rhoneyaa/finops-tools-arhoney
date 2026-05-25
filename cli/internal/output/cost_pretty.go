@@ -1,0 +1,204 @@
+package output
+
+import (
+	"fmt"
+	"io"
+	"math"
+	"strings"
+
+	"github.com/olekukonko/tablewriter"
+	"github.com/openshift-online/finops-tools/core/cost"
+)
+
+const (
+	barWidth       = 24
+	maxServiceLen  = 44
+)
+
+func writePrettyPrint(w io.Writer, r cost.CostResult) error {
+	s := newStyler(w)
+	if err := writePrettySummary(w, s, r); err != nil {
+		return err
+	}
+	if len(r.Breakdown) == 0 {
+		return nil
+	}
+	return writePrettyBreakdown(w, s, r)
+}
+
+func writePrettySummary(w io.Writer, s styler, r cost.CostResult) error {
+	amount := formatAmount(r.Amount)
+	totalLine := fmt.Sprintf("%s %s", r.Currency, amount)
+	if s.enabled {
+		totalLine = s.bold(s.yellow(totalLine))
+	}
+
+	accountLabel := accountSummaryLabel(r)
+	lines := []struct{ label, value string }{
+		{"Net amortized cost (30 days)", totalLine},
+		{accountLabel, formatAccountList(r.AccountName, r.AccountID)},
+		{"Period", fmt.Sprintf("%s – %s", r.StartDate, r.EndDate)},
+	}
+	if r.SplitBy != cost.SplitByNone {
+		lines = append(lines, struct{ label, value string }{"Split by", string(r.SplitBy)})
+	}
+
+	labelWidth := 0
+	for _, ln := range lines {
+		if len(ln.label) > labelWidth {
+			labelWidth = len(ln.label)
+		}
+	}
+
+	for _, ln := range lines {
+		label := ln.label
+		if s.enabled {
+			label = s.dim(label)
+		}
+		if _, err := fmt.Fprintf(w, "  %-*s  %s\n", labelWidth, label+":", ln.value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writePrettyBreakdown(w io.Writer, s styler, r cost.CostResult) error {
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+
+	title, keyHeader := breakdownTitles(r.SplitBy)
+	if s.enabled {
+		title = s.bold(s.cyan(title))
+	}
+	if _, err := fmt.Fprintln(w, title); err != nil {
+		return err
+	}
+
+	maxAmount := r.Amount
+	if maxAmount <= 0 && len(r.Breakdown) > 0 {
+		maxAmount = r.Breakdown[0].Amount
+	}
+	if maxAmount <= 0 {
+		maxAmount = 1
+	}
+
+	table := tablewriter.NewWriter(w)
+	table.SetAutoWrapText(false)
+	table.SetBorder(false)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetColumnAlignment([]int{
+		tablewriter.ALIGN_LEFT,
+		tablewriter.ALIGN_RIGHT,
+		tablewriter.ALIGN_RIGHT,
+		tablewriter.ALIGN_LEFT,
+	})
+	table.SetHeader([]string{
+		cell(s, s.bold, keyHeader),
+		cell(s, s.bold, "AMOUNT"),
+		cell(s, s.bold, "SHARE"),
+		cell(s, s.bold, "RELATIVE COST"),
+	})
+	table.SetTablePadding("\t")
+
+	for i, item := range r.Breakdown {
+		share := 0.0
+		if r.Amount > 0 {
+			share = item.Amount / r.Amount * 100
+		}
+		amountStr := fmt.Sprintf("%s %s", r.Currency, formatAmount(item.Amount))
+		if s.enabled && i == 0 {
+			amountStr = s.bold(amountStr)
+		}
+		table.Append([]string{
+			truncateLabel(item.DisplayLabel(r.SplitBy)),
+			amountStr,
+			fmt.Sprintf("%.1f%%", share),
+			renderBar(s, item.Amount/maxAmount, i),
+		})
+	}
+
+	table.Render()
+	return nil
+}
+
+func accountSummaryLabel(r cost.CostResult) string {
+	multi := strings.Contains(r.AccountName, ", ")
+	if r.Linked {
+		if multi {
+			return "Accounts"
+		}
+		return "Account"
+	}
+	if multi {
+		return "Payers"
+	}
+	return "Payer"
+}
+
+func formatAccountList(names, ids string) string {
+	nameParts := strings.Split(names, ", ")
+	idParts := strings.Split(ids, ", ")
+	if len(nameParts) != len(idParts) {
+		return fmt.Sprintf("%s (%s)", names, ids)
+	}
+	var parts []string
+	for i := range nameParts {
+		parts = append(parts, fmt.Sprintf("%s (%s)", strings.TrimSpace(nameParts[i]), strings.TrimSpace(idParts[i])))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func cell(s styler, fn func(string) string, text string) string {
+	if s.enabled {
+		return fn(text)
+	}
+	return text
+}
+
+func breakdownTitles(splitBy cost.SplitBy) (title, keyHeader string) {
+	switch splitBy {
+	case cost.SplitByAccount:
+		return "Cost by linked account", "ACCOUNT ID"
+	default:
+		return "Cost by service", "SERVICE"
+	}
+}
+
+func truncateLabel(name string) string {
+	if len(name) <= maxServiceLen {
+		return name
+	}
+	return name[:maxServiceLen-1] + "…"
+}
+
+func renderBar(s styler, fraction float64, rank int) string {
+	if fraction < 0 {
+		fraction = 0
+	}
+	if fraction > 1 {
+		fraction = 1
+	}
+	filled := int(math.Round(fraction * float64(barWidth)))
+	if filled > barWidth {
+		filled = barWidth
+	}
+	empty := barWidth - filled
+
+	var b strings.Builder
+	fillChar := "█"
+	emptyChar := "░"
+	if s.enabled {
+		b.WriteString(s.barColor(rank))
+	}
+	b.WriteString(strings.Repeat(fillChar, filled))
+	if s.enabled {
+		b.WriteString(ansiBarEmpty)
+	}
+	b.WriteString(strings.Repeat(emptyChar, empty))
+	if s.enabled {
+		b.WriteString(ansiReset)
+	}
+	return b.String()
+}
