@@ -163,12 +163,14 @@ finops cost get --account 123456789012 --format json
 finops cost get --account 123456789012 --format csv
 finops cost get --account 123456789012 --split-by service
 finops cost get --account 123456789012 --split-by account
+finops cost get --account 710019948333 --payer rhc   # member account, payer registered; member need not be in config
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--account` | One or more comma-separated **12-digit AWS account IDs** (must be registered with `account add`); at least one of `--account` or `--account-alias` is required |
 | `--account-alias` | One or more comma-separated configured aliases (e.g. `rh-control`, or a linked alias such as `quay`) |
+| `--payer` | Registered payer alias when using `--account` for a member account that is not in config (requires `--account`) |
 | `--auth-method` | `saml` (default) or `profile`; when omitted, uses `defaults.aws.auth_method` from config |
 | `--config` | Path to finops config file (default: OS-specific config dir) |
 | `--format` | `pretty-print` (default), `json`, or `csv` |
@@ -185,6 +187,7 @@ Generate HTML reports from configured accounts. Templates use **Jinja2 syntax** 
 finops report list
 finops report generate costs --account-alias rh-control
 finops report generate costs --account-alias rh-control -o costs.html
+finops report generate costs --account 710019948333 --payer rhc -o member.html
 ```
 
 The **costs** template includes:
@@ -200,6 +203,7 @@ The **costs** template includes:
 | `--format` | Output format (default: `html`) |
 | `--account` | Comma-separated payer AWS account IDs (at least one of `--account` or `--account-alias` is required) |
 | `--account-alias` | Comma-separated configured aliases |
+| `--payer` | Registered payer alias when using `--account` for a member account that is not in config (requires `--account`) |
 | `--auth-method` | `saml` (default) or `profile` |
 | `--config` | Path to finops config file |
 | `--credentials-file` | Path to AWS credentials file |

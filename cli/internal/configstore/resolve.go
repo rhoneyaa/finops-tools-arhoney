@@ -4,6 +4,7 @@ package configstore
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/openshift-online/finops-tools/cli/internal/account"
 	"github.com/openshift-online/finops-tools/core/cost"
@@ -39,21 +40,33 @@ func ParseAccountAliases(s string) ([]string, error) {
 }
 
 // ResolveCostTargets builds cost.AccountTarget values from account IDs and/or aliases.
-func ResolveCostTargets(cfg File, accountIDs, aliases []string) ([]cost.AccountTarget, error) {
+// When payerAlias is set, each --account ID is queried through that payer's Cost Explorer
+// credentials; member accounts need not be registered (only the payer must be).
+func ResolveCostTargets(cfg File, accountIDs, aliases []string, payerAlias string) ([]cost.AccountTarget, error) {
 	if len(accountIDs) == 0 && len(aliases) == 0 {
 		return nil, errors.New("at least one of --account or --account-alias is required")
+	}
+
+	payerAlias = strings.TrimSpace(payerAlias)
+	var payerAccountID string
+	if payerAlias != "" {
+		id, ok := cfg.PayerAccountIDForAlias(payerAlias)
+		if !ok {
+			return nil, fmt.Errorf("unknown payer alias %q (register payer with: finops account add aws <12-digit-id> --alias %s)", payerAlias, payerAlias)
+		}
+		payerAccountID = id
 	}
 
 	var out []cost.AccountTarget
 	seen := make(map[string]struct{})
 
-	add := func(target cost.AccountTarget) error {
+	add := func(target cost.AccountTarget, requireRegistered bool) error {
 		accountID := target.AccountID
 		if _, ok := seen[accountID]; ok {
 			return nil
 		}
-		if !cfg.HasAWSAccount(accountID) {
-			return fmt.Errorf("account %s is not registered (run: finops account add aws %s)", accountID, accountID)
+		if requireRegistered && !cfg.HasAWSAccount(accountID) {
+			return fmt.Errorf("account %s is not registered (run: finops account add aws %s, or use --payer <payer-alias>)", accountID, accountID)
 		}
 		seen[accountID] = struct{}{}
 		out = append(out, target)
@@ -70,7 +83,7 @@ func ResolveCostTargets(cfg File, accountIDs, aliases []string) ([]cost.AccountT
 				AccountID:      linked.AccountID,
 				PayerAccountID: payerID,
 				DisplayAlias:   alias,
-			}); err != nil {
+			}, true); err != nil {
 				return nil, err
 			}
 			continue
@@ -82,7 +95,7 @@ func ResolveCostTargets(cfg File, accountIDs, aliases []string) ([]cost.AccountT
 		if err := add(cost.AccountTarget{
 			AccountID:    id,
 			DisplayAlias: alias,
-		}); err != nil {
+		}, true); err != nil {
 			return nil, err
 		}
 	}
@@ -96,10 +109,16 @@ func ResolveCostTargets(cfg File, accountIDs, aliases []string) ([]cost.AccountT
 			AccountID:    id,
 			DisplayAlias: displayAlias,
 		}
-		if payerID, ok := cfg.PayerAccountIDForLinkedAccountID(id); ok {
+		requireRegistered := true
+		if payerAlias != "" {
+			if id != payerAccountID {
+				target.PayerAccountID = payerAccountID
+				requireRegistered = false
+			}
+		} else if payerID, ok := cfg.PayerAccountIDForLinkedAccountID(id); ok {
 			target.PayerAccountID = payerID
 		}
-		if err := add(target); err != nil {
+		if err := add(target, requireRegistered); err != nil {
 			return nil, err
 		}
 	}

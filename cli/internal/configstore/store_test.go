@@ -73,22 +73,22 @@ func TestResolveCostTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	byAlias, err := ResolveCostTargets(cfg, nil, []string{"rh-control"})
+	byAlias, err := ResolveCostTargets(cfg, nil, []string{"rh-control"}, "")
 	if err != nil || len(byAlias) != 1 || byAlias[0].AccountID != "123456789012" {
 		t.Fatalf("by alias: %+v %v", byAlias, err)
 	}
 
-	byID, err := ResolveCostTargets(cfg, []string{"987654321098"}, nil)
+	byID, err := ResolveCostTargets(cfg, []string{"987654321098"}, nil, "")
 	if err != nil || len(byID) != 1 || byID[0].AccountID != "987654321098" {
 		t.Fatalf("by id: %+v %v", byID, err)
 	}
 
-	_, err = ResolveCostTargets(cfg, []string{"111111111111"}, nil)
+	_, err = ResolveCostTargets(cfg, []string{"111111111111"}, nil, "")
 	if err == nil {
 		t.Fatal("expected error for unregistered account")
 	}
 
-	_, err = ResolveCostTargets(cfg, nil, []string{"unknown"})
+	_, err = ResolveCostTargets(cfg, nil, []string{"unknown"}, "")
 	if err == nil {
 		t.Fatal("expected error for unknown alias")
 	}
@@ -108,7 +108,7 @@ func TestResolveCostTargetsLinkedAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	targets, err := ResolveCostTargets(cfg, nil, []string{"osd-tenant-1"})
+	targets, err := ResolveCostTargets(cfg, nil, []string{"osd-tenant-1"}, "")
 	if err != nil || len(targets) != 1 {
 		t.Fatalf("targets: %+v %v", targets, err)
 	}
@@ -117,6 +117,23 @@ func TestResolveCostTargetsLinkedAlias(t *testing.T) {
 	}
 	if targets[0].DisplayAlias != "osd-tenant-1" {
 		t.Errorf("DisplayAlias = %q, want osd-tenant-1", targets[0].DisplayAlias)
+	}
+}
+
+func TestResolveCostTargetsAdHocLinked(t *testing.T) {
+	cfg := Default()
+	var err error
+	cfg, err = cfg.SetAWSAlias("rhc", "123456789012")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	targets, err := ResolveCostTargets(cfg, []string{"710019948333"}, nil, "rhc")
+	if err != nil || len(targets) != 1 {
+		t.Fatalf("targets: %+v %v", targets, err)
+	}
+	if targets[0].AccountID != "710019948333" || targets[0].PayerAccountID != "123456789012" {
+		t.Fatalf("target = %+v", targets[0])
 	}
 }
 
@@ -134,7 +151,7 @@ func TestResolveCostTargetsKeepsPayerWithLinked(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	targets, err := ResolveCostTargets(cfg, nil, []string{"rh-control", "osd-tenant-1"})
+	targets, err := ResolveCostTargets(cfg, nil, []string{"rh-control", "osd-tenant-1"}, "")
 	if err != nil || len(targets) != 2 {
 		t.Fatalf("targets: %+v %v", targets, err)
 	}

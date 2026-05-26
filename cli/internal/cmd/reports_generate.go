@@ -20,6 +20,7 @@ var (
 	reportsGenerateAccountAliases  string
 	reportsGenerateFormat          string
 	reportsGenerateOutput          string
+	reportsGeneratePayer           string
 	reportsGenerateQuiet           bool
 )
 
@@ -31,7 +32,8 @@ var reportsGenerateCmd = &cobra.Command{
 Example:
   finops report list
   finops report generate costs --account-alias rh-control
-  finops report generate costs --account-alias rh-control -o costs.html`,
+  finops report generate costs --account-alias rh-control -o costs.html
+  finops report generate costs --account 710019948333 --payer rhc -o member.html`,
 	Args: cobra.ExactArgs(1),
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if strings.TrimSpace(reportsGenerateAccount) == "" && strings.TrimSpace(reportsGenerateAccountAliases) == "" {
@@ -43,6 +45,9 @@ Example:
 		if _, err := reportpkg.ParseFormat(reportsGenerateFormat); err != nil {
 			return err
 		}
+		if strings.TrimSpace(reportsGeneratePayer) != "" && strings.TrimSpace(reportsGenerateAccount) == "" {
+			return fmt.Errorf("--payer requires --account")
+		}
 		return nil
 	},
 	RunE: runReportsGenerate,
@@ -53,6 +58,7 @@ func init() {
 	reportsGenerateCmd.Flags().StringVar(&reportsGenerateFormat, "format", reportpkg.FormatHTML, "Output format (supported: html)")
 	reportsGenerateCmd.Flags().StringVar(&reportsGenerateAccount, "account", "", "Payer AWS account ID(s), comma-separated 12-digit IDs")
 	reportsGenerateCmd.Flags().StringVar(&reportsGenerateAccountAliases, "account-alias", "", "Configured account alias(es), comma-separated (e.g. rh-control)")
+	reportsGenerateCmd.Flags().StringVar(&reportsGeneratePayer, "payer", "", "Registered payer alias for --account member IDs not in config (e.g. rhc)")
 	reportsGenerateCmd.Flags().StringVarP(&reportsGenerateOutput, "output", "o", "", "Write HTML to this file instead of stdout")
 	reportsGenerateCmd.Flags().BoolVar(&reportsGenerateQuiet, "quiet", false, "Suppress progress messages on stderr")
 }
@@ -90,7 +96,7 @@ func runReportsGenerate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	targets, err := configstore.ResolveCostTargets(cfg, accountIDs, aliases)
+	targets, err := configstore.ResolveCostTargets(cfg, accountIDs, aliases, reportsGeneratePayer)
 	if err != nil {
 		return err
 	}

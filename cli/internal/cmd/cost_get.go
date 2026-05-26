@@ -16,6 +16,7 @@ var (
 	costGetAccount           string
 	costGetAccountAliases    string
 	costGetFormat          string
+	costGetPayer           string
 	costGetProvider        string
 	costGetSplitBy         string
 )
@@ -28,6 +29,8 @@ for one or more payer or linked accounts. Provide --account with 12-digit AWS ac
 and/or --account-alias with configured aliases (see finops account add aws).
 
 For linked accounts, credentials are obtained from the registered payer account.
+Use --payer with --account to query a member account that is not registered (the payer alias must be registered).
+
 Authentication uses --auth-method when set, otherwise defaults.aws.auth_method in config (saml by default).
 
 Only AWS is supported today; GCP will be added later.`,
@@ -45,6 +48,9 @@ Only AWS is supported today; GCP will be added later.`,
 		if _, err := cost.ParseSplitBy(costGetSplitBy); err != nil {
 			return err
 		}
+		if strings.TrimSpace(costGetPayer) != "" && strings.TrimSpace(costGetAccount) == "" {
+			return fmt.Errorf("--payer requires --account")
+		}
 		return nil
 	},
 	RunE: runCostGet,
@@ -54,6 +60,7 @@ func init() {
 	costCmd.AddCommand(costGetCmd)
 	costGetCmd.Flags().StringVar(&costGetAccount, "account", "", "Payer AWS account ID(s), comma-separated 12-digit IDs")
 	costGetCmd.Flags().StringVar(&costGetAccountAliases, "account-alias", "", "Configured account alias(es), comma-separated (e.g. rh-control)")
+	costGetCmd.Flags().StringVar(&costGetPayer, "payer", "", "Registered payer alias for --account member IDs not in config (e.g. rhc)")
 	costGetCmd.Flags().StringVar(&costGetFormat, "format", string(output.FormatPrettyPrint),
 		"Output format: pretty-print, json, csv")
 	costGetCmd.Flags().StringVar(&costGetProvider, "provider", string(cost.ProviderAWS),
@@ -99,7 +106,7 @@ func runCostGet(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	targets, err := configstore.ResolveCostTargets(cfg, accountIDs, aliases)
+	targets, err := configstore.ResolveCostTargets(cfg, accountIDs, aliases, costGetPayer)
 	if err != nil {
 		return err
 	}
