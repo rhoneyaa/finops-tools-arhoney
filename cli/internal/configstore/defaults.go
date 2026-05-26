@@ -18,6 +18,8 @@ const DefaultFQNGCPAuthMethod = "gcp.auth_method"
 // DefaultFQNAWSLinkedRole is the fully qualified default IAM role name for linked account access.
 const DefaultFQNAWSLinkedRole = "aws.linked_role"
 
+// Cost period defaults use DefaultFQNCost* in cost_defaults.go.
+
 // SetDefault sets a fully qualified default and returns the updated config.
 func (f File) SetDefault(fqn, value string) (File, error) {
 	key, err := normalizeDefaultFQN(fqn)
@@ -69,8 +71,13 @@ func validateDefaultValue(fqn, value string) error {
 		return awsrole.ValidateName(value)
 	case DefaultFQNGCPAuthMethod:
 		return fmt.Errorf("default %s is not supported yet", fqn)
+	case DefaultFQNCostDays, DefaultFQNCostMonths, DefaultFQNCostFrom, DefaultFQNCostTo, DefaultFQNCostExcludeRecentDays:
+		return validateCostDefaultValue(fqn, value)
 	default:
-		return fmt.Errorf("unknown default %q (supported: %s, %s)", fqn, DefaultFQNAWSAuthMethod, DefaultFQNAWSLinkedRole)
+		return fmt.Errorf("unknown default %q (supported: %s, %s, %s, %s, %s, %s, %s)",
+			fqn,
+			DefaultFQNAWSAuthMethod, DefaultFQNAWSLinkedRole,
+			DefaultFQNCostDays, DefaultFQNCostMonths, DefaultFQNCostFrom, DefaultFQNCostTo, DefaultFQNCostExcludeRecentDays)
 	}
 }
 

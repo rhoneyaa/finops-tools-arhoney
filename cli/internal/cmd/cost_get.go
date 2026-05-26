@@ -4,6 +4,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
 	"github.com/openshift-online/finops-tools/cli/internal/configstore"
@@ -23,10 +24,12 @@ var (
 
 var costGetCmd = &cobra.Command{
 	Use:   "get",
-	Short: "Get net amortized cost for the last 30 days",
-	Long: `Fetch the sum of AWS Cost Explorer NetAmortizedCost over the last 30 days
-for one or more payer or linked accounts. Provide --account with 12-digit AWS account IDs
-and/or --account-alias with configured aliases (see finops account add aws).
+	Short: "Get net amortized cost for a date range",
+	Long: `Fetch the sum of AWS Cost Explorer NetAmortizedCost for one or more payer or linked accounts.
+Provide --account with 12-digit AWS account IDs and/or --account-alias with configured aliases (see finops account add aws).
+
+Period (default: last 30 calendar days, or defaults.cost.* in config):
+  --days, --months, --from/--to, --exclude-recent-days (omit recent incomplete CE days)
 
 For linked accounts, credentials are obtained from the registered payer account.
 Use --payer with --account to query a member account that is not registered (the payer alias must be registered).
@@ -51,7 +54,7 @@ Only AWS is supported today; GCP will be added later.`,
 		if strings.TrimSpace(costGetPayer) != "" && strings.TrimSpace(costGetAccount) == "" {
 			return fmt.Errorf("--payer requires --account")
 		}
-		return nil
+		return validatePeriodFlags(cmd)
 	},
 	RunE: runCostGet,
 }
@@ -67,6 +70,7 @@ func init() {
 		"Cloud provider: aws or gcp")
 	costGetCmd.Flags().StringVar(&costGetSplitBy, "split-by", "",
 		"Split results by dimension (supported: service, account)")
+	addPeriodFlags(costGetCmd)
 }
 
 func runCostGet(cmd *cobra.Command, _ []string) error {
@@ -89,6 +93,9 @@ func runCostGet(cmd *cobra.Command, _ []string) error {
 	}
 	cfg, err := configstore.Load(cfgPath)
 	if err != nil {
+		return err
+	}
+	if err := applyCostPeriodDefaults(cmd, cfg); err != nil {
 		return err
 	}
 
@@ -121,10 +128,15 @@ func runCostGet(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
+	dateRange, err := resolveCostPeriod(time.Now().UTC())
+	if err != nil {
+		return err
+	}
+
 	costQuery := cost.CostQuery{
 		Provider: provider,
 		Accounts: targets,
-		Days:     cost.DefaultDays,
+		Range:    dateRange,
 		SplitBy:  splitBy,
 	}
 	if provider == cost.ProviderAWS && splitBy == cost.SplitByAccount {

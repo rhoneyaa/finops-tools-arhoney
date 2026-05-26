@@ -33,7 +33,9 @@ func BuildCostsReport(ctx context.Context, q cost.CostQuery, progress Progress) 
 		progress = noopProgress{}
 	}
 
-	progress.Step("Fetching total costs from AWS Cost Explorer (last 30 days)…")
+	dr := cost.EffectiveRange(q, time.Now().UTC())
+	period := fmt.Sprintf("%s – %s", dr.Start.Format("2006-01-02"), dr.End.AddDate(0, 0, -1).Format("2006-01-02"))
+	progress.Step(fmt.Sprintf("Fetching total costs from AWS Cost Explorer (%s)…", period))
 	totalQ := q
 	totalQ.SplitBy = cost.SplitByNone
 	totalRes, err := cost.Fetch(ctx, totalQ)

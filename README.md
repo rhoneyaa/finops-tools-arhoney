@@ -71,6 +71,8 @@ The file is created automatically on first `finops account add`. Example:
 defaults:
   aws.auth_method: profile
   aws.linked_role: OrganizationAccountAccessRole
+  cost.days: "30"
+  cost.exclude_recent_days: "2"
 aws:
   account_aliases:
     rh-control: "123456789012"
@@ -89,7 +91,10 @@ Set defaults using fully qualified names (used when `--auth-method` is omitted o
 finops config default set --name aws.auth-method --value profile
 finops config default get --name aws.auth-method
 finops config default set --name aws.linked_role --value OrganizationAccountAccessRole
+finops config default set --name cost.exclude_recent_days --value 2
 ```
+
+Cost query period defaults (`cost.days`, `cost.months`, `cost.from`, `cost.to`, `cost.exclude_recent_days`) apply to `finops cost get` and `finops report generate` when the matching CLI flag is omitted. Set only one of `cost.days`, `cost.months`, or `cost.from` (optional `cost.to` with `cost.from`).
 
 Register a **payer** account by **12-digit account ID** (login + save in config):
 
@@ -165,12 +170,15 @@ STS validation must report the **linked** account ID. This registers credentials
 
 ### Cost (AWS)
 
-Fetch the last 30 days of **Net Amortized Cost** from AWS Cost Explorer. Payer and linked
-account aliases are supported; linked accounts query Cost Explorer through the registered payer.
+Fetch **Net Amortized Cost** from AWS Cost Explorer for a configurable date range (default: last 30 calendar days, or `defaults.cost.*` in config). Payer and linked account aliases are supported; linked accounts query Cost Explorer through the registered payer.
 
 ```bash
 finops account add aws 123456789012 --alias rh-control
 finops cost get --account-alias rh-control
+finops cost get --account-alias rh-control --days 7
+finops cost get --account-alias rh-control --months 3
+finops cost get --account-alias rh-control --from 2026-01-01 --to 2026-03-31
+finops cost get --account-alias rh-control --exclude-recent-days 2   # omit last 2 days (AWS CE lag)
 finops cost get --account-alias quay              # linked account (uses payer credentials)
 finops cost get --account 123456789012
 finops cost get --account-alias rh-control,osd-staging-1
@@ -186,6 +194,11 @@ finops cost get --account 710019948333 --payer rhc   # member account, payer reg
 | `--account` | One or more comma-separated **12-digit AWS account IDs** (must be registered with `account add`); at least one of `--account` or `--account-alias` is required |
 | `--account-alias` | One or more comma-separated configured aliases (e.g. `rh-control`, or a linked alias such as `quay`) |
 | `--payer` | Registered payer alias when using `--account` for a member account that is not in config (requires `--account`) |
+| `--days` | Last N calendar days (mutually exclusive with `--months` and `--from`/`--to`) |
+| `--months` | Last N calendar months from the 1st of the month (mutually exclusive with `--days` and `--from`/`--to`) |
+| `--from` | Start date `YYYY-MM-DD` inclusive (optional `--to`; otherwise through the latest stable day) |
+| `--to` | End date `YYYY-MM-DD` inclusive (requires `--from`; historical only — future dates are rejected) |
+| `--exclude-recent-days` | Omit the last N UTC days from the end anchor (incomplete AWS CE data); default from `defaults.cost.exclude_recent_days` or `0` |
 | `--auth-method` | `saml` (default) or `profile`; when omitted, uses `defaults.aws.auth_method` from config |
 | `--config` | Path to finops config file (default: OS-specific config dir) |
 | `--format` | `pretty-print` (default), `json`, or `csv` |
@@ -207,7 +220,7 @@ finops report generate costs --account 710019948333 --payer rhc -o member.html
 
 The **costs** template includes:
 
-- Total net amortized cost for the last 30 days
+- Total net amortized cost for the selected period (same flags and config defaults as `cost get`)
 - Breakdown by linked AWS account
 - Breakdown by AWS service
 - Daily cost trend chart (embedded SVG; works when opening the HTML file locally)
@@ -224,6 +237,7 @@ The **costs** template includes:
 | `--credentials-file` | Path to AWS credentials file |
 | `--output` / `-o` | Write HTML to a file instead of stdout |
 | `--quiet` | Suppress progress messages on stderr (HTML still goes to stdout or `--output`) |
+| `--days`, `--months`, `--from`, `--to`, `--exclude-recent-days` | Same period options as `finops cost get` |
 
 Progress lines (credential checks, each Cost Explorer query, render) are printed to **stderr** so you can redirect HTML safely, e.g. `finops report generate ... -o report.html`.
 

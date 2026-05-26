@@ -70,7 +70,7 @@ func fetchAWSNetAmortizedWith(ctx context.Context, q CostQuery, opts fetchAWSOpt
 		cfg.Region = costExplorerRegion
 	}
 
-	dr := LastNDaysRange(q.Days, opts.Now)
+	dr := EffectiveRange(q, opts.Now)
 	ce := opts.NewCostExplorer(cfg)
 	filter := linkedAccountFilter(accountID, acct.IsLinked())
 
@@ -348,7 +348,7 @@ func fetchAWSDailyNetAmortizedWith(ctx context.Context, q CostQuery, opts fetchA
 		cfg.Region = costExplorerRegion
 	}
 
-	dr := LastNDaysRange(q.Days, opts.Now)
+	dr := EffectiveRange(q, opts.Now)
 	ce := opts.NewCostExplorer(cfg)
 	filter := linkedAccountFilter(acct.AccountID, acct.IsLinked())
 	return sumNetAmortizedDaily(ctx, ce, dr, filter)

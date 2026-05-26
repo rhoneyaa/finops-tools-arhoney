@@ -75,11 +75,11 @@ type AWSFetchOptions struct {
 
 // CostQuery describes a cost fetch request.
 type CostQuery struct {
-	Provider  Provider
-	Accounts  []AccountTarget
-	Days      int
-	SplitBy   SplitBy
-	AWSFetch  *AWSFetchOptions
+	Provider Provider
+	Accounts []AccountTarget
+	Range    DateRange
+	SplitBy  SplitBy
+	AWSFetch *AWSFetchOptions
 }
 
 // AccountTarget identifies an AWS account whose costs are fetched.
@@ -168,16 +168,10 @@ func Fetch(ctx context.Context, q CostQuery) (CostResult, error) {
 	if len(q.Accounts) == 0 {
 		return CostResult{}, errors.New("at least one account is required")
 	}
-	days := q.Days
-	if days <= 0 {
-		days = DefaultDays
-	}
-
 	targets := FilterOverlappingTargets(q.Accounts)
 	results := make([]CostResult, 0, len(targets))
 	for _, acct := range targets {
 		single := q
-		single.Days = days
 		single.Accounts = []AccountTarget{acct}
 
 		var r CostResult
@@ -203,11 +197,6 @@ func FetchDaily(ctx context.Context, q CostQuery) ([]DailyCostItem, string, erro
 	if len(q.Accounts) == 0 {
 		return nil, "", errors.New("at least one account is required")
 	}
-	days := q.Days
-	if days <= 0 {
-		days = DefaultDays
-	}
-
 	switch q.Provider {
 	case ProviderAWS, "":
 		targets := FilterOverlappingTargets(q.Accounts)
@@ -215,7 +204,6 @@ func FetchDaily(ctx context.Context, q CostQuery) ([]DailyCostItem, string, erro
 		var currency string
 		for _, acct := range targets {
 			single := q
-			single.Days = days
 			single.Accounts = []AccountTarget{acct}
 			daily, cur, err := fetchAWSDailyNetAmortized(ctx, single)
 			if err != nil {

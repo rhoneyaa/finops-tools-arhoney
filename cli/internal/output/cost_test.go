@@ -30,7 +30,7 @@ func TestWriteCostResultPrettyPrint(t *testing.T) {
 	}
 	out := stripANSI(buf.String())
 	for _, want := range []string{
-		"Net amortized cost (30 days)",
+		"Net amortized cost (30 days)", // 2026-04-25 through 2026-05-24 inclusive
 		"USD 12,345,678.90",
 		"Payer:",
 		"RH Control Production (123456789012)",

@@ -90,7 +90,7 @@ func TestFetchAWSNetAmortizedWith(t *testing.T) {
 			AWSConfig:   aws.Config{},
 			DisplayName: "rh-control",
 		}},
-		Days: 30,
+		Range: LastNDaysRange(30, now),
 	}, fetchAWSOptions{
 		Now:             now,
 		NewCostExplorer: func(aws.Config) CostExplorerAPI { return ce },
@@ -133,7 +133,7 @@ func TestFetchAWSNetAmortizedLinkedAccount(t *testing.T) {
 			AWSConfig:      aws.Config{},
 			DisplayName:    "Quay Production",
 		}},
-		Days: 30,
+		Range: LastNDaysRange(30, now),
 	}, fetchAWSOptions{
 		Now:             now,
 		NewCostExplorer: func(aws.Config) CostExplorerAPI { return ce },
@@ -287,8 +287,8 @@ func TestFetchAWSNetAmortizedByService(t *testing.T) {
 	res, err := fetchAWSNetAmortizedWith(context.Background(), CostQuery{
 		Provider: ProviderAWS,
 		Accounts: []AccountTarget{{AccountID: "123456789012", AWSConfig: aws.Config{}}},
-		Days:     30,
-		SplitBy:  SplitByService,
+		Range:   LastNDaysRange(30, now),
+		SplitBy: SplitByService,
 	}, fetchAWSOptions{
 		Now:             now,
 		NewCostExplorer: func(aws.Config) CostExplorerAPI { return ce },
@@ -392,7 +392,7 @@ func TestFetchAWSDailyNetAmortizedWith(t *testing.T) {
 	daily, currency, err := fetchAWSDailyNetAmortizedWith(context.Background(), CostQuery{
 		Provider: ProviderAWS,
 		Accounts: []AccountTarget{{AccountID: "123456789012", AWSConfig: aws.Config{}}},
-		Days:     30,
+		Range: LastNDaysRange(30, now),
 	}, fetchAWSOptions{
 		Now:             now,
 		NewCostExplorer: func(aws.Config) CostExplorerAPI { return ce },

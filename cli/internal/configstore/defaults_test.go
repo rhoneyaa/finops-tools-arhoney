@@ -91,6 +91,53 @@ func TestSetDefaultRejectsLinkedRoleARN(t *testing.T) {
 	}
 }
 
+func TestSetDefaultCostExcludeRecentDays(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := SetDefault(path, "cost.exclude_recent_days", "2"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, ok := cfg.Default(DefaultFQNCostExcludeRecentDays)
+	if !ok || v != "2" {
+		t.Fatalf("got %q %v", v, ok)
+	}
+}
+
+func TestSetDefaultCostDays(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := SetDefault(path, "cost.days", "7"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSetDefaultRejectsInvalidCostDays(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	cfg := Default()
+	if err := Save(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetDefault(path, "cost.days", "0"); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestValidateCostPeriodDefaultsConflict(t *testing.T) {
+	cfg := Default()
+	cfg.Defaults = map[string]string{
+		DefaultFQNCostDays:   "30",
+		DefaultFQNCostMonths: "3",
+	}
+	if err := cfg.ValidateCostPeriodDefaults(); err == nil {
+		t.Fatal("expected conflict error")
+	}
+}
+
 func TestMigrateLegacyAWSDefaults(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/openshift-online/finops-tools/core/cost"
@@ -36,7 +37,7 @@ func writePrettySummary(w io.Writer, s styler, r cost.CostResult) error {
 
 	accountLabel := accountSummaryLabel(r)
 	lines := []struct{ label, value string }{
-		{"Net amortized cost (30 days)", totalLine},
+		{netAmortizedCostLabel(r.StartDate, r.EndDate), totalLine},
 		{accountLabel, formatAccountList(r.AccountName, r.AccountID)},
 		{"Period", fmt.Sprintf("%s – %s", r.StartDate, r.EndDate)},
 	}
@@ -122,6 +123,22 @@ func writePrettyBreakdown(w io.Writer, s styler, r cost.CostResult) error {
 
 	table.Render()
 	return nil
+}
+
+func netAmortizedCostLabel(startDate, endDate string) string {
+	start, err1 := time.Parse("2006-01-02", startDate)
+	end, err2 := time.Parse("2006-01-02", endDate)
+	if err1 != nil || err2 != nil {
+		return "Net amortized cost"
+	}
+	days := int(end.Sub(start).Hours()/24) + 1
+	if days <= 0 {
+		return "Net amortized cost"
+	}
+	if days == 1 {
+		return "Net amortized cost (1 day)"
+	}
+	return fmt.Sprintf("Net amortized cost (%d days)", days)
 }
 
 func accountSummaryLabel(r cost.CostResult) string {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
 	"github.com/openshift-online/finops-tools/cli/internal/configstore"
@@ -48,7 +49,7 @@ Example:
 		if strings.TrimSpace(reportGeneratePayer) != "" && strings.TrimSpace(reportGenerateAccount) == "" {
 			return fmt.Errorf("--payer requires --account")
 		}
-		return nil
+		return validatePeriodFlags(cmd)
 	},
 	RunE: runReportGenerate,
 }
@@ -61,6 +62,7 @@ func init() {
 	reportGenerateCmd.Flags().StringVar(&reportGeneratePayer, "payer", "", "Registered payer alias for --account member IDs not in config (e.g. rhc)")
 	reportGenerateCmd.Flags().StringVarP(&reportGenerateOutput, "output", "o", "", "Write HTML to this file instead of stdout")
 	reportGenerateCmd.Flags().BoolVar(&reportGenerateQuiet, "quiet", false, "Suppress progress messages on stderr")
+	addPeriodFlags(reportGenerateCmd)
 }
 
 func runReportGenerate(cmd *cobra.Command, args []string) error {
@@ -79,6 +81,9 @@ func runReportGenerate(cmd *cobra.Command, args []string) error {
 	}
 	cfg, err := configstore.Load(cfgPath)
 	if err != nil {
+		return err
+	}
+	if err := applyCostPeriodDefaults(cmd, cfg); err != nil {
 		return err
 	}
 
@@ -113,10 +118,15 @@ func runReportGenerate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	dateRange, err := resolveCostPeriod(time.Now().UTC())
+	if err != nil {
+		return err
+	}
+
 	costQuery := cost.CostQuery{
 		Provider: cost.ProviderAWS,
 		Accounts: targets,
-		Days:     cost.DefaultDays,
+		Range:    dateRange,
 		AWSFetch: &cost.AWSFetchOptions{
 			ResolveAccountNames: awsconfig.ResolveAccountNames,
 		},
