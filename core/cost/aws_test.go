@@ -1,3 +1,4 @@
+// aws_test.go tests AWS Cost Explorer fetch, grouping, and response parsing.
 package cost
 
 import (

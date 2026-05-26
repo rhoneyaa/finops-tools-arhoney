@@ -1,3 +1,4 @@
+// store.go persists fresh credentials to the credentials file and returns session metadata (Result).
 package aws
 
 import (

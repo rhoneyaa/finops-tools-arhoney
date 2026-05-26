@@ -1,3 +1,4 @@
+// config.go loads an aws.Config for a named profile from the shared AWS config chain.
 package aws
 
 import (

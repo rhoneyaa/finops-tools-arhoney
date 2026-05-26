@@ -1,3 +1,4 @@
+// id_test.go tests AWS account ID validation and comma-separated parsing.
 package account
 
 import "testing"

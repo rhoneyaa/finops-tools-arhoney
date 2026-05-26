@@ -1,3 +1,4 @@
+// demo.go registers the "finops demo" noun command for development and smoke-test utilities.
 package cmd
 
 import (

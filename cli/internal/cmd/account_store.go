@@ -1,3 +1,4 @@
+// account_store.go provides thin helpers that persist AWS payer and linked accounts via configstore.
 package cmd
 
 import (

@@ -1,3 +1,4 @@
+// auth_method_resolve_test.go tests resolveAuthMethod flag vs config precedence.
 package cmd
 
 import (

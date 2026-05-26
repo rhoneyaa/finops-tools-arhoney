@@ -1,3 +1,4 @@
+// check.go verifies that stored or resolved credentials are valid for a given account profile.
 package aws
 
 import (

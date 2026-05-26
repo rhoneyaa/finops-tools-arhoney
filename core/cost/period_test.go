@@ -1,3 +1,4 @@
+// period_test.go tests LastNDaysRange and date range formatting.
 package cost
 
 import (

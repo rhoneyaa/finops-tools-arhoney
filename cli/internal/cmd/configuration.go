@@ -1,3 +1,4 @@
+// configuration.go registers the "finops configuration" noun command for local finops config file management.
 package cmd
 
 import (

@@ -1,3 +1,4 @@
+// Package awslogin runs external and interactive AWS login flows (SAML CLI, access-key prompt).
 package awslogin
 
 import (

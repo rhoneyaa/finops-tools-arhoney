@@ -1,3 +1,4 @@
+// account.go registers the "finops account" noun command for payer and linked account management.
 package cmd
 
 import (

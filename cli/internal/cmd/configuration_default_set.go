@@ -1,3 +1,4 @@
+// configuration_default_set.go implements "finops configuration default set" to persist a default value.
 package cmd
 
 import (

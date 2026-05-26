@@ -1,3 +1,4 @@
+// hello_test.go tests the core.Hello demo function.
 package core
 
 import (

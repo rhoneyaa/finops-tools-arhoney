@@ -1,3 +1,4 @@
+// check_test.go tests CheckCredentials with mocked validators.
 package aws
 
 import (

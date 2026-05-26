@@ -1,3 +1,4 @@
+// Package awsauth orchestrates AWS credential ensure: SAML login, profile prompt, or reuse of stored profiles.
 package awsauth
 
 import (

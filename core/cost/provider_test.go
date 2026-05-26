@@ -1,3 +1,4 @@
+// provider_test.go tests provider/split-by parsing and the Fetch entry point.
 package cost
 
 import "testing"

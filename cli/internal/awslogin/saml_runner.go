@@ -1,3 +1,4 @@
+// saml_runner.go invokes rh-aws-saml-login and converts its credential output into a ProfileSession.
 package awslogin
 
 import (

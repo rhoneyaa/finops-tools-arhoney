@@ -1,3 +1,4 @@
+// credentials_file_test.go tests reading and writing the shared credentials file.
 package aws
 
 import (

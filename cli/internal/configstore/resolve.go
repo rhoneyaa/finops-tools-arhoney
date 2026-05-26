@@ -1,3 +1,4 @@
+// resolve.go parses --account flags and builds core/cost.AccountTarget slices from config aliases.
 package configstore
 
 import (

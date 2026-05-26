@@ -1,3 +1,4 @@
+// merge.go combines per-account CostResult values into a single summary with merged breakdown rows.
 package cost
 
 import (

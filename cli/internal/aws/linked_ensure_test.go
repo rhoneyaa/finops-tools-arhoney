@@ -1,3 +1,4 @@
+// linked_ensure_test.go tests EnsureLinkedCredentials end-to-end with mocks.
 package aws
 
 import (

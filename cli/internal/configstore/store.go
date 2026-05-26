@@ -1,3 +1,4 @@
+// store.go registers payer and linked AWS accounts in the finops config file.
 package configstore
 
 // RegisterAWSAccount ensures the config file exists and records alias → accountID.

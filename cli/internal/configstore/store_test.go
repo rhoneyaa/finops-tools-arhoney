@@ -1,3 +1,4 @@
+// store_test.go tests payer account registration and alias persistence.
 package configstore
 
 import (

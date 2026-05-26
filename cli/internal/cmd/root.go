@@ -1,3 +1,5 @@
+// Package cmd wires the finops CLI with Cobra: root command, command groups (core vs setup),
+// and registration of noun commands (cost, account, configuration, demo).
 package cmd
 
 import (

@@ -1,3 +1,4 @@
+// add_test.go tests AddAWS payer login with mocked credential ensure.
 package account
 
 import (

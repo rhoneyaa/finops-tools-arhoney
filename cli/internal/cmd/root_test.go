@@ -1,3 +1,4 @@
+// root_test.go tests root command help output and command group registration.
 package cmd
 
 import (

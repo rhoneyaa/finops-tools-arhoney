@@ -1,3 +1,4 @@
+// account_name.go looks up human-readable AWS Organizations account names for cost output labels.
 package aws
 
 import (

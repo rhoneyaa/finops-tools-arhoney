@@ -1,3 +1,4 @@
+// terminal.go provides ANSI styling helpers and detects whether stdout is a color-capable TTY.
 package output
 
 import (

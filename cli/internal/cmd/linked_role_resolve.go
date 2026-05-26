@@ -1,3 +1,4 @@
+// linked_role_resolve.go resolves the IAM role name and ARN for linked-account access from flags and config.
 package cmd
 
 import (

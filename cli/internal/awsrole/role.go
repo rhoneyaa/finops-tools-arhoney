@@ -1,3 +1,4 @@
+// Package awsrole builds and validates IAM role ARNs for linked-account access in AWS Organizations.
 package awsrole
 
 import (

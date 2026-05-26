@@ -1,3 +1,4 @@
+// assume_role.go obtains temporary credentials by assuming an IAM role with payer session credentials.
 package aws
 
 import (

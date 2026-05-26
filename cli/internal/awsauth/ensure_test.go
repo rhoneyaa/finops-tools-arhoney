@@ -1,3 +1,4 @@
+// ensure_test.go tests EnsureAccountCredentials with mocked credential resolution.
 package awsauth
 
 import (

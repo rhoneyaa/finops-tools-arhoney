@@ -1,3 +1,4 @@
+// account_name_test.go tests Organizations account name lookup with a mocked API.
 package aws
 
 import (

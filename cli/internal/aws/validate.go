@@ -1,3 +1,4 @@
+// validate.go validates AWS sessions via STS GetCallerIdentity or shared-config profile loading.
 package aws
 
 import (

@@ -1,3 +1,4 @@
+// configuration_default.go registers the "finops configuration default" subcommand group.
 package cmd
 
 import (

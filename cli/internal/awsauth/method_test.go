@@ -1,3 +1,4 @@
+// method_test.go tests auth method string parsing.
 package awsauth
 
 import "testing"

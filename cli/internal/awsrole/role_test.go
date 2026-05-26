@@ -1,3 +1,4 @@
+// role_test.go tests linked role ARN construction and name validation.
 package awsrole
 
 import "testing"

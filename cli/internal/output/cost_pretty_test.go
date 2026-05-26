@@ -1,3 +1,4 @@
+// cost_pretty_test.go tests pretty-print tables, bars, and ANSI stripping.
 package output
 
 import (

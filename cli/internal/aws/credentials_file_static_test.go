@@ -1,3 +1,4 @@
+// credentials_file_static_test.go tests static credential file edge cases.
 package aws
 
 import (

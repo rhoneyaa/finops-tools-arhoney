@@ -1,3 +1,4 @@
+// cost_pretty.go renders cost summaries as tables with proportional bar charts for service/account splits.
 package output
 
 import (

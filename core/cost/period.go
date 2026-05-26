@@ -1,3 +1,4 @@
+// period.go defines inclusive/exclusive date ranges for cost queries (e.g. last N calendar days).
 package cost
 
 import "time"

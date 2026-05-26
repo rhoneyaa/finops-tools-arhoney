@@ -1,3 +1,4 @@
+// linked_test.go tests AddAWSLinked with mocked ensure and assume-role flows.
 package account
 
 import (

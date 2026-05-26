@@ -1,3 +1,4 @@
+// credential_provider.go defines how the CLI obtains credentials when no valid stored profile exists.
 package aws
 
 import (

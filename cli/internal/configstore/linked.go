@@ -1,3 +1,4 @@
+// linked.go models and persists linked (member) AWS accounts accessed via payer role assumption.
 package configstore
 
 import (

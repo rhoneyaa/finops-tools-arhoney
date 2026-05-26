@@ -1,3 +1,4 @@
+// cost_aws.go ensures AWS credentials for each cost target (payer and linked) before calling core/cost.
 package cmd
 
 import (

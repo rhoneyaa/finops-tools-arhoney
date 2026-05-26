@@ -1,3 +1,4 @@
+// profile.go sanitizes account names into safe AWS credentials profile names.
 package aws
 
 import (

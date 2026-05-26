@@ -1,3 +1,4 @@
+// defaults.go reads and writes fully qualified configuration defaults (e.g. aws.auth_method).
 package configstore
 
 import (

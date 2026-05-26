@@ -1,3 +1,4 @@
+// merge_test.go tests merging multiple CostResult values and breakdown aggregation.
 package cost
 
 import "testing"

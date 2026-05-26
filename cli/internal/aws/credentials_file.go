@@ -1,3 +1,4 @@
+// credentials_file.go reads and writes profiles in the AWS shared credentials file (~/.aws/credentials).
 package aws
 
 import (

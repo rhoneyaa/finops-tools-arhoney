@@ -1,3 +1,4 @@
+// Package configstore loads and saves the finops YAML config (account aliases, defaults, linked accounts).
 package configstore
 
 import (

@@ -1,3 +1,4 @@
+// Package account implements cloud payer and linked-account login flows used by the CLI.
 package account
 
 import (

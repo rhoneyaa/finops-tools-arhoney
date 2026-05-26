@@ -1,3 +1,4 @@
+// aws_profiles.go derives the ordered list of ~/.aws profile names to try for an account.
 package account
 
 import (

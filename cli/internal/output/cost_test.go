@@ -1,3 +1,4 @@
+// cost_test.go tests JSON and CSV cost output formatting.
 package output
 
 import (

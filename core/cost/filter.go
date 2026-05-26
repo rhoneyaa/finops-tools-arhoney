@@ -1,3 +1,4 @@
+// filter.go removes redundant linked-account targets when their payer is also in the request set.
 package cost
 
 // FilterOverlappingTargets drops linked accounts whose payer is also requested,

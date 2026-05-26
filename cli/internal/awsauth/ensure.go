@@ -1,3 +1,4 @@
+// ensure.go resolves valid stored credentials or obtains and stores fresh ones for a payer account.
 package awsauth
 
 import (

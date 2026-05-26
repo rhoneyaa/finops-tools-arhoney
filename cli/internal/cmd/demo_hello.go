@@ -1,3 +1,4 @@
+// demo_hello.go implements "finops demo hello", exercising the core module from the CLI.
 package cmd
 
 import (

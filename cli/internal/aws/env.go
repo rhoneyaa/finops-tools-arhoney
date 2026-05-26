@@ -1,3 +1,4 @@
+// env.go parses shell export output from external login tools into AWS credential fields.
 package aws
 
 import "strings"

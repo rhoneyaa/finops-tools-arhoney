@@ -1,3 +1,4 @@
+// Package aws handles local AWS credentials: resolution, validation, storage, assume-role, and Organizations lookups.
 package aws
 
 import (

@@ -1,3 +1,4 @@
+// profile_resolve.go tries multiple profile names against stored credentials until one validates with STS.
 package aws
 
 import (

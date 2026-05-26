@@ -1,3 +1,4 @@
+// linked_test.go tests linked-account metadata storage and lookup.
 package configstore
 
 import (

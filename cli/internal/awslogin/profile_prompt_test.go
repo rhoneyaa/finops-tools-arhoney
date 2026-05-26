@@ -1,3 +1,4 @@
+// profile_prompt_test.go tests interactive access-key prompting.
 package awslogin
 
 import (

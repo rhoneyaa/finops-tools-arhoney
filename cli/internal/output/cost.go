@@ -1,3 +1,4 @@
+// Package output formats core/cost results for the terminal (pretty-print, JSON, CSV).
 package output
 
 import (

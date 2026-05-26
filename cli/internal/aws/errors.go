@@ -1,3 +1,4 @@
+// errors.go defines sentinel errors for credential resolution and external tool failures.
 package aws
 
 import "errors"

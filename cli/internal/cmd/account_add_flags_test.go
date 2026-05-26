@@ -1,3 +1,4 @@
+// account_add_flags_test.go tests account add command flag validation and wiring.
 package cmd
 
 import (

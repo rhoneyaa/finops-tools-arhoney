@@ -1,3 +1,4 @@
+// aws_profiles_test.go tests AWS profile name ordering (alias before account ID).
 package account
 
 import (

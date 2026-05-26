@@ -1,3 +1,4 @@
+// cost_get.go implements "finops cost get": resolves targets, ensures credentials, fetches costs, and prints output.
 package cmd
 
 import (

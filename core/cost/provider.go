@@ -1,3 +1,4 @@
+// Package cost fetches and aggregates cloud cost data from provider APIs using caller-supplied credentials.
 package cost
 
 import (

@@ -1,3 +1,4 @@
+// linked_role.go resolves the default linked-account IAM role name and ARN from config.
 package configstore
 
 import (

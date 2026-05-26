@@ -1,3 +1,4 @@
+// aws_ensure.go builds awsauth.EnsureOptions from Cobra flags and TTY detection for account commands.
 package cmd
 
 import (

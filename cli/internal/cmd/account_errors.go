@@ -1,3 +1,4 @@
+// account_errors.go defines user-facing error messages for account command validation failures.
 package cmd
 
 import "fmt"

@@ -1,3 +1,4 @@
+// linked.go logs into a linked (member) AWS account via payer credentials and role assumption.
 package account
 
 import (

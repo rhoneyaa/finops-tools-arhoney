@@ -1,3 +1,4 @@
+// auth_method_resolve.go picks the AWS auth method from --auth-method or config defaults.
 package cmd
 
 import (

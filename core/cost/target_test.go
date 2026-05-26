@@ -1,3 +1,4 @@
+// target_test.go tests AccountTarget helpers (linked detection, credentials account ID).
 package cost
 
 import "testing"

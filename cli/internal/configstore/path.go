@@ -1,3 +1,4 @@
+// path.go resolves the finops config file path from flags or OS-specific defaults.
 package configstore
 
 import (

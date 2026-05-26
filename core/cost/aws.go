@@ -1,3 +1,4 @@
+// aws.go calls AWS Cost Explorer to fetch NetAmortizedCost with optional split-by service or linked account.
 package cost
 
 import (

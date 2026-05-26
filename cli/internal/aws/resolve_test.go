@@ -1,3 +1,4 @@
+// resolve_test.go tests credential resolution status and profile iteration.
 package aws
 
 import (

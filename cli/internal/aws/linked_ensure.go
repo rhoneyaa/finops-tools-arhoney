@@ -1,3 +1,4 @@
+// linked_ensure.go ensures payer credentials then assumes a role into a linked (member) account.
 package aws
 
 import (

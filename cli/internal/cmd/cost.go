@@ -1,3 +1,4 @@
+// cost.go registers the "finops cost" noun command for cloud cost queries.
 package cmd
 
 import (

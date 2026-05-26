@@ -1,3 +1,4 @@
+// account_add.go implements "finops account add" to log in and register payer or linked AWS accounts.
 package cmd
 
 import (

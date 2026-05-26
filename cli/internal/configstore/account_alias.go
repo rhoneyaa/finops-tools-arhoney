@@ -1,3 +1,4 @@
+// account_alias.go represents a payer account ID or linked-account metadata in YAML account_aliases.
 package configstore
 
 import (

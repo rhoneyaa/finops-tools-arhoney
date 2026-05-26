@@ -1,3 +1,4 @@
+// profile_test.go tests SanitizeProfileName.
 package aws
 
 import "testing"

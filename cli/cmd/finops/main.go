@@ -1,3 +1,5 @@
+// Command finops is the entry point for the FinOps CLI binary.
+// It delegates to cli/internal/cmd for Cobra command wiring and exits non-zero on error.
 package main
 
 import (

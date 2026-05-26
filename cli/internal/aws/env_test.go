@@ -1,3 +1,4 @@
+// env_test.go tests parsing of shell-style AWS_* export lines.
 package aws
 
 import "testing"

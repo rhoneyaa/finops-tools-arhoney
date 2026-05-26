@@ -1,3 +1,4 @@
+// defaults_test.go tests get/set of fully qualified configuration defaults and legacy migration.
 package configstore
 
 import (

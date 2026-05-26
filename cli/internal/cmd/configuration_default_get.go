@@ -1,3 +1,4 @@
+// configuration_default_get.go implements "finops configuration default get" to print a stored default value.
 package cmd
 
 import (

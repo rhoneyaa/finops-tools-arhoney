@@ -1,3 +1,4 @@
+// id.go validates AWS account IDs and parses comma-separated account lists from flags.
 package account
 
 import (

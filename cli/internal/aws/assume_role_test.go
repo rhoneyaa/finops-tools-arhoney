@@ -1,3 +1,4 @@
+// assume_role_test.go tests STS AssumeRole session construction.
 package aws
 
 import (
