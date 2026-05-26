@@ -1,0 +1,65 @@
+---
+description: Pretty-print terminal output for finops CLI commands
+globs: cli/**/*
+alwaysApply: false
+---
+
+# CLI pretty-print output
+
+Human-readable CLI output lives in **`cli/internal/output/`**, not in Cobra `RunE` handlers. Commands pass `cmd.OutOrStdout()` to a `Write*` function.
+
+## Layout
+
+1. **Summary** (optional) — dim label, bold value (`  Registered AWS accounts:  2 (1 payer, 1 linked)`)
+2. **Section title** — bold cyan (`s.bold(s.cyan(...))`)
+3. **Table** — `github.com/olekukonko/tablewriter`, borderless, tab padding
+
+Reference: `cost_pretty.go`, `account_list_pretty.go`.
+
+## Files per domain
+
+| File | Role |
+|------|------|
+| `<domain>.go` | Row types, `Write*` entry, `--format` switch when needed |
+| `<domain>_pretty.go` | `write*Pretty(w io.Writer, …)` implementation |
+| `<domain>_pretty_test.go` | Tests |
+
+Reuse **`terminal.go`**: `newStyler(w)`, `cell(s, s.bold, header)`, `stripANSI` in tests. Do not duplicate TTY / `NO_COLOR` / `FORCE_COLOR` logic.
+
+## Table defaults
+
+```go
+table := tablewriter.NewWriter(w)
+table.SetAutoWrapText(false)
+table.SetBorder(false)
+table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+table.SetAlignment(tablewriter.ALIGN_LEFT)
+table.SetTablePadding("\t")
+```
+
+Headers: `cell(s, s.bold, "COLUMN")`. Emphasize key values with `s.bold`; use `s.dim` for placeholders (`-`) and empty states.
+
+## Colors
+
+Only when `styler.enabled` (TTY). Semantic colors: **cyan** (titles, payer), **yellow** (highlights, linked), **dim** (labels, empty). Bar charts use `s.barColor(rank)` from `cost_pretty.go`.
+
+## Command wiring
+
+```go
+// ✅ GOOD — cmd stays thin
+return output.WriteAWSAccountList(cmd.OutOrStdout(), rows)
+
+// ❌ BAD — tabwriter / ANSI in cli/internal/cmd/
+```
+
+Map `configstore` / `core` types to `output` row structs in `cmd`; keep `output` free of Cobra imports.
+
+## Machine-readable formats
+
+When a command needs JSON/CSV, follow `cost.go`: `ParseFormat`, `Write*Result(w, format, data)`, default `pretty-print`. Pretty path always goes through `*_pretty.go`.
+
+## Tests
+
+- Buffer / pipe: no ANSI (`colorsEnabled` false on non-`*os.File` writers).
+- Assert content via `stripANSI(buf.String())`.
+- Color on/off: `styler{enabled: true|false}` for unit tests of helpers.

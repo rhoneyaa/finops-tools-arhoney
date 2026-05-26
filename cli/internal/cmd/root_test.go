@@ -22,7 +22,7 @@ func TestRootHelpGroups(t *testing.T) {
 		"Core Commands:",
 		"Setup & Extra:",
 		"cost",
-		"configuration",
+		"config",
 		"account",
 		"demo",
 	} {

@@ -71,9 +71,9 @@ gcp:
 Set defaults using fully qualified names (used when `--auth-method` is omitted on `account add`):
 
 ```bash
-finops configuration default set --name aws.auth-method --value profile
-finops configuration default get --name aws.auth-method
-finops configuration default set --name aws.linked_role --value OrganizationAccountAccessRole
+finops config default set --name aws.auth-method --value profile
+finops config default get --name aws.auth-method
+finops config default set --name aws.linked_role --value OrganizationAccountAccessRole
 ```
 
 Register a **payer** account by **12-digit account ID** (login + save in config):
@@ -94,6 +94,13 @@ finops account add aws 111111111111 --payer rh-control --role CustomRole
 The IAM role name defaults to `OrganizationAccountAccessRole`, or `defaults.aws.linked_role` in the finops config. The CLI builds `arn:aws:iam::<account-id>:role/<role-name>` automatically.
 
 Without `--alias`, the account ID is used as the config key. Aliases are CLI-only; cost and AWS credential logic use 12-digit account IDs.
+
+List registered accounts (payer vs linked):
+
+```bash
+finops account list
+finops account list aws
+```
 
 **Cost Explorer (`finops cost get`) requires payer accounts only.** Linked-account credentials are for member-account APIs, not payer-level billing queries.
 

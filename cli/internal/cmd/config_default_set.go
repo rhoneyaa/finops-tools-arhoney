@@ -1,0 +1,53 @@
+// config_default_set.go implements "finops config default set" to persist a default value.
+package cmd
+
+import (
+	"fmt"
+
+	"github.com/openshift-online/finops-tools/cli/internal/configstore"
+	"github.com/spf13/cobra"
+)
+
+var (
+	configDefaultSetName   string
+	configDefaultSetValue  string
+	configDefaultSetConfig string
+)
+
+var configDefaultSetCmd = &cobra.Command{
+	Use:   "set",
+	Short: "Set a configuration default",
+	Long: `Store a default value in the finops config file (fully qualified names).
+
+Supported names:
+  aws.auth-method — AWS authentication for account add (saml or profile)
+  aws.linked_role — IAM role name for linked account add (default: OrganizationAccountAccessRole)
+  gcp.auth-method — reserved for future GCP support
+
+Example:
+  finops config default set --name aws.auth-method --value profile
+  finops config default set --name aws.linked_role --value OrganizationAccountAccessRole`,
+	RunE: runConfigDefaultSet,
+}
+
+func init() {
+	configDefaultCmd.AddCommand(configDefaultSetCmd)
+	configDefaultSetCmd.Flags().StringVar(&configDefaultSetName, "name", "", "Default name (required)")
+	configDefaultSetCmd.Flags().StringVar(&configDefaultSetValue, "value", "", "Default value (required)")
+	configDefaultSetCmd.Flags().StringVar(&configDefaultSetConfig, "config", "", "Path to finops config file (default: OS-specific config dir)")
+	_ = configDefaultSetCmd.MarkFlagRequired("name")
+	_ = configDefaultSetCmd.MarkFlagRequired("value")
+}
+
+func runConfigDefaultSet(cmd *cobra.Command, _ []string) error {
+	path, err := configstore.ResolvePath(configDefaultSetConfig)
+	if err != nil {
+		return err
+	}
+	if err := configstore.SetDefault(path, configDefaultSetName, configDefaultSetValue); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(cmd.OutOrStdout(), "Default %s set to %q in %s\n",
+		configDefaultSetName, configDefaultSetValue, path)
+	return err
+}

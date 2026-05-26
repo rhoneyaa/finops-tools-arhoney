@@ -36,7 +36,7 @@ Linked account (assume a role from a registered payer):
   finops account add aws 111111111111 --payer rh-control --role CustomRole
 
 The role name defaults to OrganizationAccountAccessRole, or the value of
-defaults.aws.linked_role in the finops config (finops configuration default set).
+defaults.aws.linked_role in the finops config (finops config default set).
 
 With --auth-method saml (default): runs rh-aws-saml-login for the payer when credentials are missing.
 With --auth-method profile: uses an existing ~/.aws profile when valid.
