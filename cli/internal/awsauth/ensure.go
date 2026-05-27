@@ -13,6 +13,7 @@ import (
 type EnsureOptions struct {
 	AccountName     string
 	ProfileNames    []string
+	Lookup          awsconfig.CredentialLookup
 	Force           bool
 	Method          Method
 	CredentialsPath string
@@ -48,7 +49,7 @@ func EnsureAccountCredentials(ctx context.Context, opts EnsureOptions) (awsconfi
 		return awsconfig.Result{}, missingCredentialsError(opts.Method, opts.AccountName, opts.ProfileNames, opts.CredentialsPath)
 	}
 
-	sess, err := provider.Obtain(ctx, opts.AccountName)
+	sess, err := obtainWithProvider(ctx, provider, opts)
 	if err != nil {
 		return awsconfig.Result{}, err
 	}
@@ -59,6 +60,20 @@ func EnsureAccountCredentials(ctx context.Context, opts EnsureOptions) (awsconfi
 		CredentialsPath: opts.CredentialsPath,
 		Validator:       opts.Validator,
 	}, sess)
+}
+
+func obtainWithProvider(ctx context.Context, provider awsconfig.CredentialProvider, opts EnsureOptions) (awsconfig.ProfileSession, error) {
+	lookup := opts.Lookup
+	if lookup.AccountID == "" {
+		lookup.AccountID = opts.AccountName
+	}
+	if len(lookup.Names) == 0 {
+		lookup.Names = []string{opts.AccountName}
+	}
+	if advanced, ok := provider.(awsconfig.LookupCredentialProvider); ok {
+		return advanced.ObtainWithLookup(ctx, lookup)
+	}
+	return provider.Obtain(ctx, opts.AccountName)
 }
 
 func missingCredentialsError(method Method, accountName string, profileNames []string, credentialsPath string) error {

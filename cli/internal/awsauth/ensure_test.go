@@ -34,6 +34,22 @@ func (f fakeProvider) Obtain(ctx context.Context, accountName string) (awsconfig
 	return f.sess, nil
 }
 
+type fakeLookupProvider struct {
+	sess   awsconfig.ProfileSession
+	lookup awsconfig.CredentialLookup
+	calls  int
+}
+
+func (f *fakeLookupProvider) Obtain(ctx context.Context, accountName string) (awsconfig.ProfileSession, error) {
+	return awsconfig.ProfileSession{}, errors.New("plain obtain should not be called")
+}
+
+func (f *fakeLookupProvider) ObtainWithLookup(ctx context.Context, lookup awsconfig.CredentialLookup) (awsconfig.ProfileSession, error) {
+	f.calls++
+	f.lookup = lookup
+	return f.sess, nil
+}
+
 func TestEnsureAccountCredentialsUsesExistingProfile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "credentials")
@@ -139,6 +155,40 @@ func TestEnsureAccountCredentialsProfileWithoutProviderFails(t *testing.T) {
 	})
 	if !errors.Is(err, awsconfig.ErrCredentialsNotFound) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestEnsureAccountCredentialsUsesLookupProvider(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "credentials")
+	lookupProvider := &fakeLookupProvider{
+		sess: awsconfig.ProfileSession{
+			AccessKeyID: "NEW", SecretAccessKey: "SK", SessionToken: "ST", Region: "us-east-1",
+		},
+	}
+
+	_, err := EnsureAccountCredentials(context.Background(), EnsureOptions{
+		AccountName:     "123456789012",
+		Method:          MethodSAML,
+		CredentialsPath: path,
+		Validator: fakeValidator{
+			valid: true,
+			id:    awsconfig.Identity{AccountID: "123456789012", ARN: "arn:x", UserID: "u"},
+		},
+		Lookup: awsconfig.CredentialLookup{
+			AccountID: "123456789012",
+			Names:     []string{"rh-control", "123456789012"},
+		},
+		Provider: lookupProvider,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lookupProvider.calls != 1 {
+		t.Fatalf("lookup calls = %d", lookupProvider.calls)
+	}
+	if lookupProvider.lookup.AccountID != "123456789012" || len(lookupProvider.lookup.Names) != 2 {
+		t.Fatalf("lookup = %+v", lookupProvider.lookup)
 	}
 }
 

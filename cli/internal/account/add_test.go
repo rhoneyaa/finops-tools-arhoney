@@ -7,14 +7,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
 	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
+	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
 )
 
 func TestAddAWSRegistersAccount(t *testing.T) {
+	var gotEnsureOpts awsauth.EnsureOptions
 	res, err := AddAWS(context.Background(), AddAWSOptions{
 		AccountID: "123456789012",
-		Ensure: func(context.Context, awsauth.EnsureOptions) (awsconfig.Result, error) {
+		Alias:     "rh-control",
+		Ensure: func(_ context.Context, opts awsauth.EnsureOptions) (awsconfig.Result, error) {
+			gotEnsureOpts = opts
 			return awsconfig.Result{
 				AccountID: "123456789012",
 				ARN:       "arn:aws:sts::123456789012:assumed-role/x",
@@ -28,6 +31,12 @@ func TestAddAWSRegistersAccount(t *testing.T) {
 	}
 	if res.AccountID != "123456789012" || res.Profile != "123456789012" {
 		t.Fatalf("got %+v", res)
+	}
+	if gotEnsureOpts.Lookup.AccountID != "123456789012" {
+		t.Fatalf("lookup accountID = %q", gotEnsureOpts.Lookup.AccountID)
+	}
+	if len(gotEnsureOpts.Lookup.Names) != 2 || gotEnsureOpts.Lookup.Names[0] != "rh-control" {
+		t.Fatalf("lookup names = %v", gotEnsureOpts.Lookup.Names)
 	}
 }
 

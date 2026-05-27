@@ -138,16 +138,20 @@ finops account add aws 123456789012
 
 1. Looks up a profile derived from the account ID in `~/.aws/credentials`, then in `~/.aws/config` (shared config / SSO).
 2. If the profile exists and STS validation succeeds, reports success without logging in again.
-3. With `--auth-method saml` (default), if credentials are missing or invalid, runs `rh-aws-saml-login --output env <account>` and merges credentials into `~/.aws/credentials` (other profiles are preserved).
+3. With `--auth-method saml` (default), if credentials are missing or invalid, runs a native Red Hat Kerberos + SAML login flow and merges temporary credentials into `~/.aws/credentials` (other profiles are preserved).
 4. With `--auth-method profile`, SAML login is skipped. `finops account add` uses an existing profile when valid (including a `~/.aws` profile named like `--alias`, e.g. `rh-control`); in an interactive terminal it prompts for access keys only when no matching profile exists. You can also configure the profile yourself (`aws configure`, `aws sso login`, etc.) and run `account add` again to confirm it works.
 
 **SAML prerequisites** (default login, and `--force`):
 
 - Red Hat VPN connected
 - Valid Kerberos ticket (`kinit`)
-- [`rh-aws-saml-login`](https://github.com/app-sre/rh-aws-saml-login) installed (e.g. `uv tool install rh-aws-saml-login`)
+- Kerberos tools available locally (`klist`, usually present on managed RH laptops)
 
-If SAML login prompts for a password, use your **Red Hat Kerberos** password (same as `kinit`), not your AWS console password.
+SAML account matching accepts:
+
+- 12-digit AWS account ID (recommended for `finops account add aws <id>`)
+- SAML account display name (for example `rh-control`)
+- `account/role` when a specific role name is required
 
 #### Linked accounts (profile chaining without finops flags)
 

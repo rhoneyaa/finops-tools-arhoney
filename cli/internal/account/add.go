@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
 	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
+	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
 )
 
 var errProviderNotImplemented = errors.New("account provider not implemented")
@@ -47,6 +47,10 @@ func AddAWS(ctx context.Context, opts AddAWSOptions) (AddResult, error) {
 
 	ensureOpts := opts.EnsureOptions
 	ensureOpts.AccountName = accountID
+	ensureOpts.Lookup = awsconfig.CredentialLookup{
+		AccountID: accountID,
+		Names:     awsProfileNames(accountID, opts.Alias, nil),
+	}
 	ensureOpts.ProfileNames = awsProfileNames(accountID, opts.Alias, ensureOpts.ProfileNames)
 
 	res, err := ensure(ctx, ensureOpts)

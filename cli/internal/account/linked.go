@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
 	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
+	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
 )
 
 // AWSEnsureLinkedFunc performs linked-account credential ensure (injectable for tests).
@@ -42,6 +42,10 @@ func AddAWSLinked(ctx context.Context, opts AddAWSLinkedOptions) (AddResult, err
 	}
 	payerEnsure := opts.PayerEnsureOpts
 	payerEnsure.AccountName = opts.PayerAccountID
+	payerEnsure.Lookup = awsconfig.CredentialLookup{
+		AccountID: opts.PayerAccountID,
+		Names:     awsProfileNames(opts.PayerAccountID, opts.PayerAlias, nil),
+	}
 	payerEnsure.ProfileNames = awsProfileNames(opts.PayerAccountID, opts.PayerAlias, payerEnsure.ProfileNames)
 	if _, err := ensurePayer(ctx, payerEnsure); err != nil {
 		return AddResult{}, fmt.Errorf("ensure payer credentials: %w", err)
