@@ -44,6 +44,5 @@ changelog:
 
 release:
   prerelease: auto
-  github:
-    owner: openshift-online
-    name: finops-tools
+  # Omit github.owner/name so releases publish to the repo running the workflow
+  # (theute/finops-tools today; openshift-online/finops-tools when tags land there).
