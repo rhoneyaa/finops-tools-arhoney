@@ -10,7 +10,7 @@ import (
 type Method string
 
 const (
-	// MethodSAML runs rh-aws-saml-login when stored credentials are missing or invalid.
+	// MethodSAML runs the built-in Red Hat Kerberos + SAML login when stored credentials are missing or invalid.
 	MethodSAML Method = "saml"
 	// MethodProfile uses existing ~/.aws profiles; may prompt for keys when interactive.
 	MethodProfile Method = "profile"

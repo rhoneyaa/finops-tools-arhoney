@@ -35,7 +35,7 @@ Linked account (assume a role from a registered payer):
 The role name defaults to OrganizationAccountAccessRole, or the value of
 defaults.aws.linked_role in the finops config (finops config default set).
 
-With --auth-method saml (default): runs rh-aws-saml-login for the payer when credentials are missing.
+With --auth-method saml (default): runs built-in Red Hat SAML login for the payer when credentials are missing.
 With --auth-method profile: uses an existing ~/.aws profile when valid.
 
 cost get supports payer and linked account aliases. Linked accounts use payer credentials
