@@ -6,20 +6,20 @@ import (
 	"strings"
 	"time"
 
-	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
 	"github.com/openshift-online/finops-tools/cli/internal/configstore"
 	"github.com/openshift-online/finops-tools/cli/internal/output"
+	coreaccount "github.com/openshift-online/finops-tools/core/account"
 	"github.com/openshift-online/finops-tools/core/cost"
 	"github.com/spf13/cobra"
 )
 
 var (
-	costGetAccount           string
-	costGetAccountAliases    string
-	costGetFormat          string
-	costGetPayer           string
-	costGetProvider        string
-	costGetSplitBy         string
+	costGetAccount        string
+	costGetAccountAliases string
+	costGetFormat         string
+	costGetPayer          string
+	costGetProvider       string
+	costGetSplitBy        string
 )
 
 var costGetCmd = &cobra.Command{
@@ -141,7 +141,7 @@ func runCostGet(cmd *cobra.Command, _ []string) error {
 	}
 	if provider == cost.ProviderAWS && splitBy == cost.SplitByAccount {
 		costQuery.AWSFetch = &cost.AWSFetchOptions{
-			ResolveAccountNames: awsconfig.ResolveAccountNames,
+			ResolveAccountNames: coreaccount.ResolveAccountNames,
 		}
 	}
 

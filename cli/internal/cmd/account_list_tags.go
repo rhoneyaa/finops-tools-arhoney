@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/openshift-online/finops-tools/cli/internal/account"
-	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
 	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
 	"github.com/openshift-online/finops-tools/cli/internal/configstore"
 	"github.com/openshift-online/finops-tools/cli/internal/output"
+	coreaccount "github.com/openshift-online/finops-tools/core/account"
 	"github.com/spf13/cobra"
 )
 
@@ -34,9 +34,8 @@ Examples:
 
 var (
 	accountTagsEnsureCredentials  = awsauth.EnsureAccountCredentials
-	accountTagsResolveCredentials = awsconfig.ResolveCredentials
-	accountTagsLoadProfile        = awsconfig.LoadSharedConfigProfile
-	accountTagsFetch              = awsconfig.AccountTags
+	accountTagsLoadConfigForCreds = loadAWSConfigForCredentialsAccount
+	accountTagsFetch              = coreaccount.ListTags
 	accountTagsFormat             string
 )
 
@@ -92,25 +91,9 @@ func runAccountTags(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("%s: %w", target.CredentialsAccountID, mapCredentialError(target.CredentialsAccountID, err))
 	}
 
-	res, status, err := accountTagsResolveCredentials(cmd.Context(), awsconfig.ResolveOptions{
-		AccountName:     target.CredentialsAccountID,
-		ProfileNames:    profiles,
-		CredentialsPath: awsFlags.CredentialsFile,
-	})
+	awsCfg, err := accountTagsLoadConfigForCreds(cmd.Context(), cfg, target.CredentialsAccountID, awsFlags.CredentialsFile)
 	if err != nil {
-		return fmt.Errorf("%s: %w", target.CredentialsAccountID, err)
-	}
-	if status != awsconfig.CredentialsValid {
-		return fmt.Errorf("%s: %w", target.CredentialsAccountID, mapCredentialStatusError(target.CredentialsAccountID, status))
-	}
-
-	profile := res.Profile
-	if profile == "" {
-		profile = awsconfig.SanitizeProfileName(target.CredentialsAccountID)
-	}
-	awsCfg, err := accountTagsLoadProfile(cmd.Context(), profile)
-	if err != nil {
-		return fmt.Errorf("%s: load AWS profile %q: %w", target.CredentialsAccountID, profile, err)
+		return err
 	}
 	tags, err := accountTagsFetch(cmd.Context(), awsCfg, target.AccountID)
 	if err != nil {

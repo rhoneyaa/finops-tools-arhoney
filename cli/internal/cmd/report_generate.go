@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
 	"github.com/openshift-online/finops-tools/cli/internal/configstore"
 	"github.com/openshift-online/finops-tools/cli/internal/progress"
 	reportpkg "github.com/openshift-online/finops-tools/cli/internal/report"
+	coreaccount "github.com/openshift-online/finops-tools/core/account"
 	"github.com/openshift-online/finops-tools/core/cost"
 	corereport "github.com/openshift-online/finops-tools/core/report"
 	"github.com/spf13/cobra"
@@ -128,7 +128,7 @@ func runReportGenerate(cmd *cobra.Command, args []string) error {
 		Accounts: targets,
 		Range:    dateRange,
 		AWSFetch: &cost.AWSFetchOptions{
-			ResolveAccountNames: awsconfig.ResolveAccountNames,
+			ResolveAccountNames: coreaccount.ResolveAccountNames,
 		},
 	}
 

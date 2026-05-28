@@ -7,9 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/openshift-online/finops-tools/cli/internal/account"
-	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
 	"github.com/openshift-online/finops-tools/cli/internal/configstore"
+	coreaccount "github.com/openshift-online/finops-tools/core/account"
 )
 
 func TestRunAccountAddBlocksDetectedLinkedAccount(t *testing.T) {
@@ -19,7 +20,7 @@ func TestRunAccountAddBlocksDetectedLinkedAccount(t *testing.T) {
 		AccountID: "123456789012",
 		Profile:   "linked-profile",
 		ARN:       "arn:aws:sts::123456789012:assumed-role/OrganizationAccountAccessRole/test",
-	}, awsconfig.AccountKindLinked, nil)
+	}, coreaccount.AccountKindLinked, nil)
 	defer restore()
 
 	accountAddAlias = "finops-s1"
@@ -59,7 +60,7 @@ func TestRunAccountAddWarnsAndRegistersOnUnknown(t *testing.T) {
 		AccountID: "123456789012",
 		Profile:   "unknown-profile",
 		ARN:       "arn:aws:sts::123456789012:assumed-role/OrganizationAccountAccessRole/test",
-	}, awsconfig.AccountKindUnknown, context.DeadlineExceeded)
+	}, coreaccount.AccountKindUnknown, context.DeadlineExceeded)
 	defer restore()
 
 	accountAddAlias = "rh-control"
@@ -101,7 +102,7 @@ func TestRunAccountAddAllowsDetectedPayer(t *testing.T) {
 		AccountID: "123456789012",
 		Profile:   "payer-profile",
 		ARN:       "arn:aws:sts::123456789012:assumed-role/OrganizationAccountAccessRole/test",
-	}, awsconfig.AccountKindPayer, nil)
+	}, coreaccount.AccountKindPayer, nil)
 	defer restore()
 
 	accountAddAlias = "rh-control"
@@ -129,20 +130,25 @@ func TestRunAccountAddAllowsDetectedPayer(t *testing.T) {
 func stubAccountAddDependencies(
 	t *testing.T,
 	result account.AddResult,
-	kind awsconfig.AccountKind,
+	kind coreaccount.AccountKind,
 	kindErr error,
 ) func() {
 	t.Helper()
 	prevAdd := addAccountFn
+	prevLoad := loadAWSAccountProfileFn
 	prevKind := detectAWSAccountKindFn
 	addAccountFn = func(context.Context, account.AddOptions) (account.AddResult, error) {
 		return result, nil
 	}
-	detectAWSAccountKindFn = func(context.Context, string, string) (awsconfig.AccountKind, error) {
+	loadAWSAccountProfileFn = func(context.Context, string) (aws.Config, error) {
+		return aws.Config{}, nil
+	}
+	detectAWSAccountKindFn = func(context.Context, aws.Config, string) (coreaccount.AccountKind, error) {
 		return kind, kindErr
 	}
 	return func() {
 		addAccountFn = prevAdd
+		loadAWSAccountProfileFn = prevLoad
 		detectAWSAccountKindFn = prevKind
 	}
 }

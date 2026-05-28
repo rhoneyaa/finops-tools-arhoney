@@ -6,18 +6,20 @@ import (
 	"strings"
 
 	"github.com/openshift-online/finops-tools/cli/internal/account"
-	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
 	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
+	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
+	coreaccount "github.com/openshift-online/finops-tools/core/account"
 	"github.com/spf13/cobra"
 )
 
 var (
-	accountAddForce           bool
-	accountAddAlias           string
-	accountAddPayer           string
-	accountAddRole            string
-	addAccountFn              = account.Add
-	detectAWSAccountKindFn    = awsconfig.DetectAccountKind
+	accountAddForce         bool
+	accountAddAlias         string
+	accountAddPayer         string
+	accountAddRole          string
+	addAccountFn            = account.Add
+	loadAWSAccountProfileFn = awsconfig.LoadSharedConfigProfile
+	detectAWSAccountKindFn  = coreaccount.DetectAccountKind
 )
 
 var accountAddCmd = &cobra.Command{
@@ -105,14 +107,18 @@ func runAccountAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if provider == account.ProviderAWS {
-		kind, kindErr := detectAWSAccountKindFn(cmd.Context(), res.Profile, res.AccountID)
+		awsCfg, err := loadAWSAccountProfileFn(cmd.Context(), res.Profile)
+		if err != nil {
+			return fmt.Errorf("load AWS profile %q: %w", res.Profile, err)
+		}
+		kind, kindErr := detectAWSAccountKindFn(cmd.Context(), awsCfg, res.AccountID)
 		switch kind {
-		case awsconfig.AccountKindLinked:
+		case coreaccount.AccountKindLinked:
 			return fmt.Errorf(
 				"account %s appears to be a linked/member account (profile=%s); register it with --payer <payer-alias>",
 				res.AccountID, res.Profile,
 			)
-		case awsconfig.AccountKindUnknown:
+		case coreaccount.AccountKindUnknown:
 			if kindErr != nil {
 				if _, err := fmt.Fprintf(cmd.ErrOrStderr(),
 					"warning: unable to determine whether account %s is payer or linked (profile=%s): %v; continuing as payer because --payer was not set\n",

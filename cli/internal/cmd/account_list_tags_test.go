@@ -12,6 +12,7 @@ import (
 	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
 	"github.com/openshift-online/finops-tools/cli/internal/configstore"
 	"github.com/openshift-online/finops-tools/cli/internal/output"
+	coreaccount "github.com/openshift-online/finops-tools/core/account"
 )
 
 func TestRunAccountTagsLinkedAliasUsesPayerCredentials(t *testing.T) {
@@ -46,13 +47,11 @@ func TestRunAccountTagsLinkedAliasUsesPayerCredentials(t *testing.T) {
 	})
 
 	origEnsure := accountTagsEnsureCredentials
-	origResolve := accountTagsResolveCredentials
-	origLoad := accountTagsLoadProfile
+	origLoadConfig := accountTagsLoadConfigForCreds
 	origFetch := accountTagsFetch
 	t.Cleanup(func() {
 		accountTagsEnsureCredentials = origEnsure
-		accountTagsResolveCredentials = origResolve
-		accountTagsLoadProfile = origLoad
+		accountTagsLoadConfigForCreds = origLoadConfig
 		accountTagsFetch = origFetch
 	})
 
@@ -62,20 +61,14 @@ func TestRunAccountTagsLinkedAliasUsesPayerCredentials(t *testing.T) {
 		}
 		return awsconfig.Result{Profile: "rh-control"}, nil
 	}
-	accountTagsResolveCredentials = func(_ context.Context, opts awsconfig.ResolveOptions) (awsconfig.Result, awsconfig.ResolveStatus, error) {
-		if opts.AccountName != "123456789012" {
-			t.Fatalf("resolve AccountName = %q", opts.AccountName)
-		}
-		return awsconfig.Result{Profile: "rh-control"}, awsconfig.CredentialsValid, nil
-	}
-	accountTagsLoadProfile = func(context.Context, string) (aws.Config, error) {
+	accountTagsLoadConfigForCreds = func(context.Context, configstore.File, string, string) (aws.Config, error) {
 		return aws.Config{}, nil
 	}
-	accountTagsFetch = func(_ context.Context, _ aws.Config, accountID string) ([]awsconfig.AccountTag, error) {
+	accountTagsFetch = func(_ context.Context, _ aws.Config, accountID string) ([]coreaccount.Tag, error) {
 		if accountID != "111111111111" {
 			t.Fatalf("fetch accountID = %q", accountID)
 		}
-		return []awsconfig.AccountTag{
+		return []coreaccount.Tag{
 			{Key: "env", Value: "prod"},
 			{Key: "owner", Value: "team-a"},
 		}, nil
@@ -117,27 +110,22 @@ func TestRunAccountTagsJSONFormat(t *testing.T) {
 	})
 
 	origEnsure := accountTagsEnsureCredentials
-	origResolve := accountTagsResolveCredentials
-	origLoad := accountTagsLoadProfile
+	origLoadConfig := accountTagsLoadConfigForCreds
 	origFetch := accountTagsFetch
 	t.Cleanup(func() {
 		accountTagsEnsureCredentials = origEnsure
-		accountTagsResolveCredentials = origResolve
-		accountTagsLoadProfile = origLoad
+		accountTagsLoadConfigForCreds = origLoadConfig
 		accountTagsFetch = origFetch
 	})
 
 	accountTagsEnsureCredentials = func(context.Context, awsauth.EnsureOptions) (awsconfig.Result, error) {
 		return awsconfig.Result{Profile: "rh-control"}, nil
 	}
-	accountTagsResolveCredentials = func(context.Context, awsconfig.ResolveOptions) (awsconfig.Result, awsconfig.ResolveStatus, error) {
-		return awsconfig.Result{Profile: "rh-control"}, awsconfig.CredentialsValid, nil
-	}
-	accountTagsLoadProfile = func(context.Context, string) (aws.Config, error) {
+	accountTagsLoadConfigForCreds = func(context.Context, configstore.File, string, string) (aws.Config, error) {
 		return aws.Config{}, nil
 	}
-	accountTagsFetch = func(_ context.Context, _ aws.Config, _ string) ([]awsconfig.AccountTag, error) {
-		return []awsconfig.AccountTag{
+	accountTagsFetch = func(_ context.Context, _ aws.Config, _ string) ([]coreaccount.Tag, error) {
+		return []coreaccount.Tag{
 			{Key: "env", Value: "prod"},
 		}, nil
 	}

@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openshift-online/finops-tools/cli/internal/account"
-	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
-	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
-	"github.com/openshift-online/finops-tools/cli/internal/configstore"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/openshift-online/finops-tools/cli/internal/account"
+	awsconfig "github.com/openshift-online/finops-tools/cli/internal/aws"
+	"github.com/openshift-online/finops-tools/cli/internal/awsauth"
+	"github.com/openshift-online/finops-tools/cli/internal/configstore"
+	coreaccount "github.com/openshift-online/finops-tools/core/account"
 	"github.com/openshift-online/finops-tools/core/cost"
 	"github.com/spf13/cobra"
 )
@@ -60,55 +61,67 @@ func prepareCostTargets(
 		credID := targets[i].CredentialsAccountID()
 		if awsCfg, ok := credConfigs[credID]; ok {
 			targets[i].AWSConfig = awsCfg
-			if err := enrichCostTargetDisplayName(ctx, &targets[i], store, credentialsFile); err != nil {
+			if err := enrichCostTargetDisplayName(ctx, &targets[i], store); err != nil {
 				return nil, err
 			}
 			continue
 		}
 
-		profileNames := account.AWSProfileNames(credID, store.PayerAliasForAccountID(credID), nil)
-		res, status, err := awsconfig.ResolveCredentials(ctx, awsconfig.ResolveOptions{
-			AccountName:     credID,
-			ProfileNames:    profileNames,
-			CredentialsPath: credentialsFile,
-		})
+		awsCfg, err := loadAWSConfigForCredentialsAccount(ctx, store, credID, credentialsFile)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", credID, err)
-		}
-		if status != awsconfig.CredentialsValid {
-			return nil, fmt.Errorf("%s: %w", credID, mapCredentialStatusError(credID, status))
-		}
-
-		profile := res.Profile
-		if profile == "" {
-			profile = awsconfig.SanitizeProfileName(credID)
-		}
-		awsCfg, err := awsconfig.LoadSharedConfigProfile(ctx, profile)
-		if err != nil {
-			return nil, fmt.Errorf("%s: load AWS profile %q: %w", credID, profile, err)
+			return nil, err
 		}
 		credConfigs[credID] = awsCfg
 		targets[i].AWSConfig = awsCfg
 
-		if err := enrichCostTargetDisplayName(ctx, &targets[i], store, credentialsFile); err != nil {
+		if err := enrichCostTargetDisplayName(ctx, &targets[i], store); err != nil {
 			return nil, err
 		}
 	}
 	return targets, nil
 }
 
+func loadAWSConfigForCredentialsAccount(
+	ctx context.Context,
+	store configstore.File,
+	credentialsAccountID,
+	credentialsFile string,
+) (aws.Config, error) {
+	profileNames := account.AWSProfileNames(credentialsAccountID, store.PayerAliasForAccountID(credentialsAccountID), nil)
+	res, status, err := awsconfig.ResolveCredentials(ctx, awsconfig.ResolveOptions{
+		AccountName:     credentialsAccountID,
+		ProfileNames:    profileNames,
+		CredentialsPath: credentialsFile,
+	})
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("%s: %w", credentialsAccountID, err)
+	}
+	if status != awsconfig.CredentialsValid {
+		return aws.Config{}, fmt.Errorf("%s: %w", credentialsAccountID, mapCredentialStatusError(credentialsAccountID, status))
+	}
+
+	profile := res.Profile
+	if profile == "" {
+		profile = awsconfig.SanitizeProfileName(credentialsAccountID)
+	}
+	awsCfg, err := awsconfig.LoadSharedConfigProfile(ctx, profile)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("%s: load AWS profile %q: %w", credentialsAccountID, profile, err)
+	}
+	return awsCfg, nil
+}
+
 func enrichCostTargetDisplayName(
 	ctx context.Context,
 	target *cost.AccountTarget,
 	store configstore.File,
-	_ string,
 ) error {
 	accountID := strings.TrimSpace(target.AccountID)
 	if accountID == "" {
 		return nil
 	}
 
-	if name, err := awsconfig.AccountName(ctx, target.AWSConfig, accountID); err == nil && strings.TrimSpace(name) != "" {
+	if name, err := coreaccount.AccountName(ctx, target.AWSConfig, accountID); err == nil && strings.TrimSpace(name) != "" {
 		target.DisplayName = name
 		return nil
 	}
@@ -126,7 +139,7 @@ func enrichCostTargetDisplayName(
 		if err != nil {
 			continue
 		}
-		name, err := awsconfig.AccountName(ctx, awsCfg, accountID)
+		name, err := coreaccount.AccountName(ctx, awsCfg, accountID)
 		if err == nil {
 			target.DisplayName = name
 			return nil

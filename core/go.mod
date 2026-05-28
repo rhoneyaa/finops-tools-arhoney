@@ -5,6 +5,7 @@ go 1.24
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.7
 	github.com/aws/aws-sdk-go-v2/service/costexplorer v1.63.8
+	github.com/aws/aws-sdk-go-v2/service/organizations v1.51.3
 )
 
 require (
