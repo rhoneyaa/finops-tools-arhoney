@@ -1,0 +1,42 @@
+---
+description: enforce core-first architecture and thin CLI integration
+globs: cli/internal/**/*,core/**/*
+alwaysApply: true
+---
+
+# core-first architecture boundary
+
+Keep architecture organized so reusable logic lives in `core` and interface-specific concerns stay in `cli`.
+
+## Ownership
+
+- **`core/` owns reusable business operations** that should be shared by CLI and future REST APIs.
+- **`cli/` owns interface concerns**: authentication, local config/profile resolution, command parsing, and output formatting.
+
+## Required layering
+
+- CLI commands should orchestrate inputs and call `core` services.
+- `core` may call cloud APIs via callers' `aws.Config` (or equivalent), but must not read local config files.
+- New API entrypoints (HTTP, MCP, etc.) should consume `core` directly instead of duplicating provider logic from CLI.
+
+## Keep in cli
+
+- SAML/profile login flows
+- credential file management and profile discovery
+- local config file reads/writes
+- Cobra flags/args/help handling
+- terminal/pretty output, JSON/CSV command rendering
+
+## Keep in core
+
+- account metadata operations (for example tags and account-name resolution)
+- account classification logic that uses already-authenticated configs
+- cost/report domain computation and query orchestration
+- provider adapters behind narrow interfaces for testability
+
+## PR checklist for this boundary
+
+- Any new cloud business capability is added in `core` first.
+- CLI change uses `core` API and does not reimplement provider calls in `cli/internal/cmd`.
+- No local credential/config file I/O is introduced under `core/`.
+- If behavior is shared by multiple frontends, it is implemented once in `core`.

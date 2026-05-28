@@ -1,12 +1,12 @@
 ---
-description: core package is credential-agnostic library code for cost computation
+description: core package is credential-agnostic business logic (cost + account metadata)
 globs: core/**/*
 alwaysApply: false
 ---
 
-# core: cost computation only
+# core: shared business logic only
 
-The `core/` module is shared library code for **computing costs** from credentials the caller provides. It must not know about local machine configuration.
+The `core/` module is shared library code for reusable cloud business logic (for example `core/cost` and `core/account`) from caller-provided credentials. It must not know about local machine configuration.
 
 ## Forbidden in core/
 
@@ -17,9 +17,15 @@ The `core/` module is shared library code for **computing costs** from credentia
 
 ## Where local configuration belongs
 
-- **`cli/internal/aws`** — credentials files, STS validation, SAML/profile login, assume-role, Organizations lookups
+- **`cli/internal/aws`** — credentials files, STS validation, SAML/profile login, assume-role, profile loading
 - **`cli/internal/awsauth`** — auth-method selection and ensure orchestration
 - **`cli/internal/configstore`** — finops config file
+
+## Where reusable cloud operations belong
+
+- **`core/cost`** — cloud cost query and aggregation logic (no local config reads)
+- **`core/account`** — reusable account metadata operations (tags, account names, org-based account kind detection) using caller-supplied `aws.Config`
+- Keep these operations callable from CLI and future API layers without duplication
 
 ## Patterns
 
@@ -39,4 +45,4 @@ type AWSFetchOptions struct {
 path, _ := DefaultCredentialsPath()
 ```
 
-`core/cost` calls AWS Cost Explorer with `AccountTarget.AWSConfig` only.
+`core/*` packages call cloud APIs using caller-supplied `aws.Config` only.
