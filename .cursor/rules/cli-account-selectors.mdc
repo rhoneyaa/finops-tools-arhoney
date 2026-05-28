@@ -1,0 +1,47 @@
+---
+description: Account CLI selectors — explicit --account-id and --account-alias
+globs: cli/internal/cmd/account*.go
+alwaysApply: false
+---
+
+# Account command selectors
+
+Account-targeting commands must be explicit. Do not autodetect alias vs account ID from a positional argument.
+
+## Required flags
+
+- **`--account-id`** — 12-digit AWS account ID (never name this flag `--account`).
+- **`--account-alias`** — registered finops alias.
+
+Require **exactly one** of `--account-id` or `--account-alias`. Validate in command logic (not only Cobra mutual exclusion unless wired).
+
+```go
+// ✅ GOOD
+accountTagsCmd.Flags().StringVar(&accountTagsAccountID, "account-id", "", "12-digit AWS account ID")
+accountTagsCmd.Flags().StringVar(&accountTagsAlias, "account-alias", "", "Registered account alias")
+
+// ❌ BAD — ambiguous positional
+Use: "list-tags <account>"
+
+// ❌ BAD — inconsistent flag name
+Flags().StringVar(&id, "account", "", "12-digit AWS account ID")
+```
+
+## Examples
+
+```bash
+finops account list-tags --account-alias rh-control
+finops account list-tags --account-id 111111111111 --payer rh-control
+finops account update-tag --account-id 957976798851 --tag-key organization --tag-value "Hybrid Platform" --payer rh-control
+```
+
+## AWS Organizations account tags
+
+- **List / add / update** tags: resolve target via `resolveAccountTagsTargetExplicit` (or shared helper with same contract).
+- **Mutations** (`add-tag`, `update-tag`): use **payer** credentials. Support `--payer <payer-alias>` when the target is not mapped to a payer in config. Verify credential account is payer before calling Organizations write APIs.
+- **Core** (`core/account`): use account-centric API names (`SetAccountTag`, `ListTagsForAccount`). Keep AWS SDK `TagResource` inside the Organizations client adapter only.
+
+## Tests and docs
+
+- Command tests set `--account-id` or `--account-alias` on package-level flag vars; do not pass positional account args.
+- README and command `Long` help must use `--account-id`, not `--account`, for these commands.
