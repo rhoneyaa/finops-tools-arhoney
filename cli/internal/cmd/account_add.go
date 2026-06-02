@@ -245,13 +245,25 @@ func runAccountAddSnowflake(cmd *cobra.Command, accountID string) error {
 		alias = accountID
 	}
 
+	session := cfg.ResolveSnowflakeSession(configstore.SnowflakeAccount{
+		Account:   accountID,
+		Role:      accountAddSnowflakeRole,
+		Warehouse: accountAddSnowflakeWH,
+		Database:  accountAddSnowflakeDB,
+		Schema:    accountAddSnowflakeSchema,
+		SSO:       sso,
+	})
+	if err := configstore.ValidateSnowflakeWarehouse(session, alias); err != nil {
+		return err
+	}
+
 	res, err := addSnowflakeAccountFn(cmd.Context(), account.AddSnowflakeOptions{
 		Account: account.SnowflakeAccountSettings{
-			Account:   accountID,
-			Role:      accountAddSnowflakeRole,
-			Warehouse: accountAddSnowflakeWH,
-			Database:  accountAddSnowflakeDB,
-			Schema:    accountAddSnowflakeSchema,
+			Account:   session.Account,
+			Role:      session.Role,
+			Warehouse: session.Warehouse,
+			Database:  session.Database,
+			Schema:    session.Schema,
 		},
 		Alias:      alias,
 		OAuth:      oauthCfg,
@@ -261,14 +273,7 @@ func runAccountAddSnowflake(cmd *cobra.Command, accountID string) error {
 		return err
 	}
 
-	if err := registerSnowflakeAccount(path, alias, configstore.SnowflakeAccount{
-		Account:   accountID,
-		Role:      accountAddSnowflakeRole,
-		Warehouse: accountAddSnowflakeWH,
-		Database:  accountAddSnowflakeDB,
-		Schema:    accountAddSnowflakeSchema,
-		SSO:       sso,
-	}); err != nil {
+	if err := registerSnowflakeAccount(path, alias, session); err != nil {
 		return err
 	}
 

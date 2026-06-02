@@ -74,6 +74,40 @@ func TestResolveSnowflakeAccountAlias(t *testing.T) {
 	}
 }
 
+func TestResolveSnowflakeSession(t *testing.T) {
+	cfg := File{}
+	cfg, err := cfg.SetDefault(DefaultFQNSnowflakeWarehouse, "GLOBAL_WH")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = cfg.SetDefault(DefaultFQNSnowflakeRole, "GLOBAL_ROLE")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := cfg.ResolveSnowflakeSession(SnowflakeAccount{
+		Account:   "ORG-ACCT",
+		Warehouse: "ALIAS_WH",
+	})
+	if got.Warehouse != "ALIAS_WH" || got.Role != "GLOBAL_ROLE" {
+		t.Fatalf("got %+v, want alias warehouse and global role", got)
+	}
+
+	got = cfg.ResolveSnowflakeSession(SnowflakeAccount{Account: "ORG-ACCT"})
+	if got.Warehouse != "GLOBAL_WH" || got.Role != "GLOBAL_ROLE" {
+		t.Fatalf("got %+v, want global defaults", got)
+	}
+}
+
+func TestValidateSnowflakeWarehouse(t *testing.T) {
+	if err := ValidateSnowflakeWarehouse(SnowflakeAccount{Warehouse: "WH"}, "rhsandbox"); err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if err := ValidateSnowflakeWarehouse(SnowflakeAccount{}, "rhsandbox"); err == nil {
+		t.Fatal("expected error for missing warehouse")
+	}
+}
+
 func TestResolveSnowflakeOAuthClientUsesDefaultPath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "snowflake-oauth.yaml")

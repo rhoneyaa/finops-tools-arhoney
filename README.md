@@ -136,6 +136,8 @@ finops account list snowflake
 
 Query Snowflake using OAuth tokens from [Red Hat SSO](https://dataverse.pages.redhat.com/platform/snowflake/red-hat-sso-access/). The access token must include audience `dataverse-snowflake` and scope `session:role-any` (usually via IAM default client scopes / mappers, not by requesting scopes in the authorize URL). The CLI OAuth redirect URI is fixed at `http://127.0.0.1:8765/oauth/callback` (must be registered on the SSO client).
 
+Session settings (account, role, warehouse, database, schema) are stored only in the finops config file (`~/.config/finops/config.yaml`). The CLI does **not** read `~/.snowflake/connections.toml` or Snowflake CLI connection profiles. Configure each alias with `finops account add snowflake` flags and/or `snowflake.*` defaults below.
+
 Store OAuth client credentials (never commit these):
 
 ```bash
@@ -150,13 +152,19 @@ finops config default set --name snowflake.sso_issuer --value prod   # or stage 
 finops config default set --name snowflake.oauth_audience --value dataverse-snowflake
 # Override which registered alias finops snowflake uses (first account add sets this automatically):
 # finops config default set --name snowflake.account_alias --value rhprod
+# Shared session defaults when an alias omits role/warehouse/database/schema:
+# finops config default set --name snowflake.warehouse --value MY_WH
+# finops config default set --name snowflake.role --value MY_ROLE
 ```
 
-Register a Snowflake account (opens browser for Red Hat SSO, stores refresh token in `~/.config/finops/snowflake-tokens.yaml`):
+Register a Snowflake account (opens browser for Red Hat SSO, stores refresh token in `~/.config/finops/snowflake-tokens.yaml`). A warehouse is required (per alias or via `snowflake.warehouse` default):
 
 ```bash
-finops account add snowflake ORG-ACCOUNT --alias rhprod --snowflake-role PUBLIC
-finops account add snowflake ORG-ACCOUNT --alias rhprod --force   # re-login
+finops account add snowflake myorg-sandbox --alias sandbox \
+  --snowflake-role MY_ROLE \
+  --warehouse MY_WH \
+  --database MY_DB --schema MY_SCHEMA
+finops account add snowflake myorg-prod --alias prod --force   # re-login
 ```
 
 Run SQL:

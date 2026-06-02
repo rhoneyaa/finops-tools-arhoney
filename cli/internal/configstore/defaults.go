@@ -79,15 +79,16 @@ func validateDefaultValue(fqn, value string) error {
 		return fmt.Errorf("default %s is not supported yet", fqn)
 	case DefaultFQNCostDays, DefaultFQNCostMonths, DefaultFQNCostFrom, DefaultFQNCostTo, DefaultFQNCostExcludeRecentDays:
 		return validateCostDefaultValue(fqn, value)
-	case DefaultFQNSnowflakeSSOIssuer, DefaultFQNSnowflakeOAuthAudience, DefaultFQNSnowflakeAccountAlias:
+	case DefaultFQNSnowflakeSSOIssuer, DefaultFQNSnowflakeOAuthAudience, DefaultFQNSnowflakeAccountAlias,
+		DefaultFQNSnowflakeWarehouse, DefaultFQNSnowflakeRole, DefaultFQNSnowflakeDatabase, DefaultFQNSnowflakeSchema:
 		return validateSnowflakeDefaultValue(fqn, value)
 	default:
-		return fmt.Errorf("unknown default %q (supported: %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+		return fmt.Errorf("unknown default %q (supported: %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
 			fqn,
 			DefaultFQNAWSAuthMethod, DefaultFQNAWSLinkedRole,
 			DefaultFQNCostDays, DefaultFQNCostMonths, DefaultFQNCostFrom, DefaultFQNCostTo, DefaultFQNCostExcludeRecentDays,
-			DefaultFQNSnowflakeSSOIssuer, DefaultFQNSnowflakeOAuthAudience,
-			DefaultFQNSnowflakeAccountAlias)
+			DefaultFQNSnowflakeSSOIssuer, DefaultFQNSnowflakeOAuthAudience, DefaultFQNSnowflakeAccountAlias,
+			DefaultFQNSnowflakeWarehouse, DefaultFQNSnowflakeRole, DefaultFQNSnowflakeDatabase, DefaultFQNSnowflakeSchema)
 	}
 }
 

@@ -13,6 +13,14 @@ const (
 	DefaultFQNSnowflakeOAuthAudience = "snowflake.oauth_audience"
 	// DefaultFQNSnowflakeAccountAlias is the default registered Snowflake account alias for snowflake commands.
 	DefaultFQNSnowflakeAccountAlias = "snowflake.account_alias"
+	// DefaultFQNSnowflakeWarehouse is the default warehouse when an alias omits warehouse.
+	DefaultFQNSnowflakeWarehouse = "snowflake.warehouse"
+	// DefaultFQNSnowflakeRole is the default role when an alias omits role.
+	DefaultFQNSnowflakeRole = "snowflake.role"
+	// DefaultFQNSnowflakeDatabase is the default database when an alias omits database.
+	DefaultFQNSnowflakeDatabase = "snowflake.database"
+	// DefaultFQNSnowflakeSchema is the default schema when an alias omits schema.
+	DefaultFQNSnowflakeSchema = "snowflake.schema"
 )
 
 const (
@@ -37,6 +45,11 @@ func validateSnowflakeDefaultValue(fqn, value string) error {
 	case DefaultFQNSnowflakeAccountAlias:
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("snowflake.account_alias cannot be empty")
+		}
+		return nil
+	case DefaultFQNSnowflakeWarehouse, DefaultFQNSnowflakeRole, DefaultFQNSnowflakeDatabase, DefaultFQNSnowflakeSchema:
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s cannot be empty", fqn)
 		}
 		return nil
 	default:

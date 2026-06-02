@@ -54,6 +54,10 @@ func runSnowflakeQuery(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	acct = cfg.ResolveSnowflakeSession(acct)
+	if err := configstore.ValidateSnowflakeWarehouse(acct, alias); err != nil {
+		return err
+	}
 
 	tok, err := ensureSnowflakeAccessToken(cmd.Context(), cfg, alias, snowflakeFlags.SecretsPath, snowflakeFlags.TokensPath, acct)
 	if err != nil {
