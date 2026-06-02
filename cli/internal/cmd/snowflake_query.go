@@ -1,14 +1,13 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/openshift-online/finops-tools/cli/internal/configstore"
+	"github.com/openshift-online/finops-tools/cli/internal/output"
 	"github.com/openshift-online/finops-tools/cli/internal/snowflakeoauth"
 	coresnowflake "github.com/openshift-online/finops-tools/core/snowflake"
-	"github.com/openshift-online/finops-tools/cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +23,8 @@ var snowflakeQueryCmd = &cobra.Command{
 
 Examples:
   finops snowflake query --account-alias rhprod --sql "SELECT CURRENT_USER(), CURRENT_ROLE()"
-  finops snowflake query --account-alias rhprod --sql "SELECT 1" --format json`,
+  finops snowflake query --account-alias rhprod --sql "SELECT 1" --format json
+  finops snowflake query --account-alias rhprod --sql "SELECT 1" --format csv`,
 	RunE: runSnowflakeQuery,
 }
 
@@ -100,58 +100,5 @@ func runSnowflakeQuery(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	switch format {
-	case output.FormatJSON:
-		enc := json.NewEncoder(cmd.OutOrStdout())
-		enc.SetIndent("", "  ")
-		return enc.Encode(result)
-	case output.FormatCSV:
-		return writeSnowflakeCSV(cmd.OutOrStdout(), result)
-	default:
-		return writeSnowflakePretty(cmd.OutOrStdout(), result)
-	}
-}
-
-func writeSnowflakePretty(w interface{ Write([]byte) (int, error) }, result coresnowflake.QueryResult) error {
-	if len(result.Rows) == 0 {
-		_, err := fmt.Fprintln(w, "(no rows)")
-		return err
-	}
-	for i, row := range result.Rows {
-		if _, err := fmt.Fprintf(w, "row %d:\n", i+1); err != nil {
-			return err
-		}
-		for _, col := range result.Columns {
-			if _, err := fmt.Fprintf(w, "  %s: %s\n", col, row[col]); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func writeSnowflakeCSV(w interface{ Write([]byte) (int, error) }, result coresnowflake.QueryResult) error {
-	if len(result.Columns) == 0 {
-		return nil
-	}
-	if _, err := fmt.Fprintln(w, strings.Join(result.Columns, ",")); err != nil {
-		return err
-	}
-	for _, row := range result.Rows {
-		vals := make([]string, len(result.Columns))
-		for i, col := range result.Columns {
-			vals[i] = csvEscape(row[col])
-		}
-		if _, err := fmt.Fprintln(w, strings.Join(vals, ",")); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func csvEscape(s string) string {
-	if strings.ContainsAny(s, ",\"\n") {
-		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
-	}
-	return s
+	return output.WriteSnowflakeQueryResult(cmd.OutOrStdout(), format, result)
 }
