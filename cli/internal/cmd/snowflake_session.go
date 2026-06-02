@@ -2,12 +2,23 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/openshift-online/finops-tools/cli/internal/configstore"
 	"github.com/openshift-online/finops-tools/cli/internal/snowflakecred"
 	"github.com/openshift-online/finops-tools/cli/internal/snowflakeoauth"
+)
+
+var errSnowflakeTokensNotFound = errors.New("snowflake oauth tokens not found")
+
+var (
+	resolveSnowflakeOAuthClientFn = resolveSnowflakeOAuthClient
+	loadSnowflakeTokenFn          = loadSnowflakeToken
+	persistSnowflakeTokenFn       = persistSnowflakeToken
+	refreshSnowflakeTokenFn       = snowflakeoauth.Refresh
+	loginSnowflakeTokenFn         = snowflakeoauth.Login
 )
 
 func resolveSnowflakeOAuthClient(secretsPath string) (clientID, clientSecret string, err error) {
@@ -48,13 +59,13 @@ func loadSnowflakeToken(alias, tokensPath string) (snowflakeoauth.TokenSet, erro
 	}
 	tok, ok := file.Get(alias)
 	if !ok {
-		return snowflakeoauth.TokenSet{}, fmt.Errorf("no oauth tokens for snowflake alias %q; run finops account add snowflake", alias)
+		return snowflakeoauth.TokenSet{}, fmt.Errorf("%w for snowflake alias %q", errSnowflakeTokensNotFound, alias)
 	}
 	return tok, nil
 }
 
 func ensureSnowflakeAccessToken(ctx context.Context, cfg configstore.File, alias, secretsPath, tokensPath string, acct configstore.SnowflakeAccount) (snowflakeoauth.TokenSet, error) {
-	clientID, clientSecret, err := resolveSnowflakeOAuthClient(secretsPath)
+	clientID, clientSecret, err := resolveSnowflakeOAuthClientFn(secretsPath)
 	if err != nil {
 		return snowflakeoauth.TokenSet{}, err
 	}
@@ -67,24 +78,30 @@ func ensureSnowflakeAccessToken(ctx context.Context, cfg configstore.File, alias
 		return snowflakeoauth.TokenSet{}, err
 	}
 
-	tok, err := loadSnowflakeToken(alias, tokensPath)
-	if err != nil {
+	tok, err := loadSnowflakeTokenFn(alias, tokensPath)
+	if err != nil && !errors.Is(err, errSnowflakeTokensNotFound) {
 		return snowflakeoauth.TokenSet{}, err
 	}
-	if tok.Valid() {
+	if err == nil && tok.Valid() {
 		return tok, nil
 	}
-	if strings.TrimSpace(tok.RefreshToken) != "" {
-		refreshed, err := snowflakeoauth.Refresh(ctx, oauthCfg, tok.RefreshToken)
+	if err == nil && strings.TrimSpace(tok.RefreshToken) != "" {
+		refreshed, err := refreshSnowflakeTokenFn(ctx, oauthCfg, tok.RefreshToken)
 		if err == nil && refreshed.Valid() {
-			if err := persistSnowflakeToken(alias, tokensPath, refreshed); err != nil {
+			if err := persistSnowflakeTokenFn(alias, tokensPath, refreshed); err != nil {
 				return snowflakeoauth.TokenSet{}, err
 			}
 			return refreshed, nil
 		}
 	}
-	return snowflakeoauth.TokenSet{}, fmt.Errorf("snowflake oauth token expired for alias %q; run finops account add snowflake %s --alias %s --force",
-		alias, acct.Account, alias)
+	reauthenticated, err := loginSnowflakeTokenFn(ctx, oauthCfg)
+	if err != nil {
+		return snowflakeoauth.TokenSet{}, fmt.Errorf("snowflake oauth login failed for alias %q: %w", alias, err)
+	}
+	if err := persistSnowflakeTokenFn(alias, tokensPath, reauthenticated); err != nil {
+		return snowflakeoauth.TokenSet{}, err
+	}
+	return reauthenticated, nil
 }
 
 func persistSnowflakeToken(alias, tokensPath string, tok snowflakeoauth.TokenSet) error {
