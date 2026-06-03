@@ -1,3 +1,5 @@
 /bin/
 /dist/
 *.exe
+MIGRATION_PLAN.md
+validation_output/
