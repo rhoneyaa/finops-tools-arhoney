@@ -71,9 +71,23 @@ func fetchAWSNetAmortizedBulk(ctx context.Context, q CostQuery, targets []Accoun
 	case SplitByService:
 		return fetchAWSNetAmortizedBulkByService(ctx, ce, q, targets, plan, dr)
 	case SplitByAccount, SplitByNone:
-		_, currency, breakdown, err := sumNetAmortizedGrouped(ctx, ce, dr, "LINKED_ACCOUNT", SplitByAccount, nil)
-		if err != nil {
-			return CostResult{}, err
+		ids := sortedAccountIDs(plan.accountIDs)
+		var (
+			breakdown []CostBreakdownItem
+			currency  string
+		)
+		for _, batch := range batchStrings(ids, linkedAccountFilterBatchSize) {
+			filter := linkedAccountsFilter(batch)
+			_, cur, batchBreakdown, err := sumNetAmortizedGrouped(ctx, ce, dr, "LINKED_ACCOUNT", SplitByAccount, filter)
+			if err != nil {
+				return CostResult{}, err
+			}
+			if currency == "" {
+				currency = cur
+			} else if cur != "" && cur != currency {
+				return CostResult{}, fmt.Errorf("cannot merge account batches with different currencies (%s vs %s)", currency, cur)
+			}
+			breakdown = append(breakdown, batchBreakdown...)
 		}
 		breakdown = filterBreakdownAccounts(breakdown, plan.accountIDs)
 		breakdown = applyTargetDisplayNames(breakdown, displayNames)
