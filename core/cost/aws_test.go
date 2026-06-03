@@ -157,7 +157,7 @@ func TestFetchAWSNetAmortizedLinkedAccount(t *testing.T) {
 
 func TestDisplayAccountNameFallsBackToDisplayAlias(t *testing.T) {
 	name := displayAccountName(AccountTarget{
-		AccountID:    "206170669542",
+		AccountID:    "111111111111",
 		DisplayAlias: "quay",
 	})
 	if name != "quay" {

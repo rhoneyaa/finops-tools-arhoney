@@ -209,7 +209,7 @@ finops cost get --account 123456789012 --format json
 finops cost get --account 123456789012 --format csv
 finops cost get --account 123456789012 --split-by service
 finops cost get --account 123456789012 --split-by account
-finops cost get --account 710019948333 --payer rhc   # member account, payer registered; member need not be in config
+finops cost get --account 333333333333 --payer rhc   # member account, payer registered; member need not be in config
 finops account list-ous --payer rh-control           # discover OU IDs
 finops cost get --ou ou-abcd-1234 --payer rh-control
 finops cost get --ou ou-abcd-1234 --payer rh-control --ou-direct --days 7
@@ -251,7 +251,7 @@ Generate HTML reports from configured accounts. Templates use **Jinja2 syntax** 
 finops report list
 finops report generate costs --account-alias rh-control
 finops report generate costs --account-alias rh-control -o costs.html
-finops report generate costs --account 710019948333 --payer rhc -o member.html
+finops report generate costs --account 333333333333 --payer rhc -o member.html
 finops report generate costs --ou ou-abcd-1234 --payer rh-control -o ou-costs.html
 ```
 

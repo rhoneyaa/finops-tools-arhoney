@@ -40,7 +40,7 @@ Example:
   finops report list
   finops report generate costs --account-alias rh-control
   finops report generate costs --account-alias rh-control -o costs.html
-  finops report generate costs --account 710019948333 --payer rhc -o member.html
+  finops report generate costs --account 333333333333 --payer rhc -o member.html
   finops report generate costs --ou ou-abcd-1234 --payer rh-control -o ou-costs.html
   finops report generate costs --payer rh-control --tag-key env --tag-value prod -o prod.html`,
 	Args: cobra.ExactArgs(1),
