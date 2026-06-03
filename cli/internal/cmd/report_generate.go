@@ -13,6 +13,7 @@ import (
 	coreaccount "github.com/openshift-online/finops-tools/core/account"
 	"github.com/openshift-online/finops-tools/core/cost"
 	corereport "github.com/openshift-online/finops-tools/core/report"
+	coresp "github.com/openshift-online/finops-tools/core/report/savingsplans"
 	"github.com/spf13/cobra"
 )
 
@@ -215,15 +216,35 @@ func runReportGenerate(cmd *cobra.Command, args []string) error {
 		if err := reportpkg.RenderCostsHTML(out, report); err != nil {
 			return err
 		}
-		if !reportGenerateQuiet {
-			if path := strings.TrimSpace(reportGenerateOutput); path != "" {
-				status.Step(fmt.Sprintf("Wrote report to %s", path))
-			} else {
-				status.Step("Report written to stdout")
-			}
+
+	case reportpkg.TemplateSavingsPlans:
+		if format != reportpkg.FormatHTML {
+			return fmt.Errorf("template %q does not support format %q", templateName, format)
 		}
-		return nil
+		if len(targets) == 0 {
+			return fmt.Errorf("savings-plans report requires an account target (--account-alias or --account)")
+		}
+		status.Step("Fetching Savings Plans data from AWS Cost Explorer…")
+		spReport, err := coresp.Build(cmd.Context(), targets[0].AWSConfig, dateRange)
+		if err != nil {
+			return err
+		}
+		status.Step("Rendering HTML report…")
+		accountSummary := reportpkg.FormatAccountSummary(targets)
+		if err := reportpkg.RenderSavingsPlansHTML(out, spReport, accountSummary); err != nil {
+			return err
+		}
+
 	default:
 		return fmt.Errorf("unsupported template %q", templateName)
 	}
+
+	if !reportGenerateQuiet {
+		if path := strings.TrimSpace(reportGenerateOutput); path != "" {
+			status.Step(fmt.Sprintf("Wrote report to %s", path))
+		} else {
+			status.Step("Report written to stdout")
+		}
+	}
+	return nil
 }

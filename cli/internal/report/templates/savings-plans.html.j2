@@ -1,0 +1,84 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Savings Plans Report — {{ account_summary }}{% endblock %}
+
+{% block content %}
+<header>
+  <h1>Savings Plans Report</h1>
+  <p class="meta">
+    <strong>Account:</strong> {{ account_summary }}<br>
+    <strong>Period:</strong> {{ start_date }} — {{ end_date }}<br>
+    <strong>Generated:</strong> {{ generated_at }}
+  </p>
+</header>
+
+<section>
+  <h2>Coverage</h2>
+  <p class="meta">Percentage of eligible on-demand spend covered by Savings Plans</p>
+  {% if coverage %}
+  <table>
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th class="amount">Coverage</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in coverage %}
+      <tr>
+        <td>{{ row.Month }}</td>
+        <td class="amount">{{ row.PercentageFormatted }}</td>
+        <td>
+          {% if row.Percentage >= 80 %}
+          <span style="color:#22c55e">&#x2713; Good</span>
+          {% elif row.Percentage >= 60 %}
+          <span style="color:#f59e0b">&#x26A0; Low</span>
+          {% else %}
+          <span style="color:#ef4444">&#x2717; Critical</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="meta">No coverage data available for this period.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Utilization</h2>
+  <p class="meta">Percentage of purchased Savings Plans commitment that was used</p>
+  {% if utilization %}
+  <table>
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th class="amount">Utilization</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in utilization %}
+      <tr>
+        <td>{{ row.Month }}</td>
+        <td class="amount">{{ row.PercentageFormatted }}</td>
+        <td>
+          {% if row.Percentage >= 90 %}
+          <span style="color:#22c55e">&#x2713; Good</span>
+          {% elif row.Percentage >= 70 %}
+          <span style="color:#f59e0b">&#x26A0; Low</span>
+          {% else %}
+          <span style="color:#ef4444">&#x2717; Critical</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="meta">No utilization data available for this period.</p>
+  {% endif %}
+</section>
+{% endblock %}
