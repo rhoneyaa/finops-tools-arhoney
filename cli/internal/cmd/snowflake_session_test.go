@@ -11,36 +11,73 @@ import (
 	"github.com/openshift-online/finops-tools/cli/internal/snowflakeoauth"
 )
 
+type snowflakeSessionTestOverrides struct {
+	loadToken    func(string, string) (snowflakeoauth.TokenSet, error)
+	refresh      func(context.Context, snowflakeoauth.ClientConfig, string) (snowflakeoauth.TokenSet, error)
+	login        func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error)
+	persistToken func(string, string, snowflakeoauth.TokenSet) error
+}
+
+func testSnowflakeTokenSession(t *testing.T, o snowflakeSessionTestOverrides) snowflakeTokenSession {
+	t.Helper()
+	s := defaultSnowflakeTokenSession()
+	s.resolveOAuthClient = func(string) (string, string, error) {
+		return "client-id", "secret", nil
+	}
+	if o.loadToken != nil {
+		s.loadToken = o.loadToken
+	}
+	if o.refresh != nil {
+		s.refresh = o.refresh
+	}
+	if o.login != nil {
+		s.login = o.login
+	}
+	if o.persistToken != nil {
+		s.persistToken = o.persistToken
+	}
+	return s
+}
+
+func callEnsureAccessToken(t *testing.T, s snowflakeTokenSession) (snowflakeoauth.TokenSet, error) {
+	t.Helper()
+	tok, _, err := s.ensureAccessToken(
+		context.Background(),
+		configstore.Default(),
+		"rhprod", "", "",
+		configstore.SnowflakeAccount{Account: "acct"},
+	)
+	return tok, err
+}
+
 func TestEnsureSnowflakeAccessToken_UsesValidCachedToken(t *testing.T) {
-	reset := stubSnowflakeSessionDeps()
-	defer reset()
-
-	resolveSnowflakeOAuthClientFn = func(string) (string, string, error) { return "client-id", "secret", nil }
-	loadSnowflakeTokenFn = func(string, string) (snowflakeoauth.TokenSet, error) {
-		return snowflakeoauth.TokenSet{
-			AccessToken: "cached",
-			Expiry:      time.Now().Add(10 * time.Minute),
-		}, nil
-	}
-
 	refreshCalled := false
-	refreshSnowflakeTokenFn = func(context.Context, snowflakeoauth.ClientConfig, string) (snowflakeoauth.TokenSet, error) {
-		refreshCalled = true
-		return snowflakeoauth.TokenSet{}, nil
-	}
 	loginCalled := false
-	loginSnowflakeTokenFn = func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error) {
-		loginCalled = true
-		return snowflakeoauth.TokenSet{}, nil
-	}
-	persistSnowflakeTokenFn = func(string, string, snowflakeoauth.TokenSet) error {
-		t.Fatal("persist should not be called")
-		return nil
-	}
 
-	got, _, err := ensureSnowflakeAccessToken(context.Background(), configstore.Default(), "rhprod", "", "", configstore.SnowflakeAccount{Account: "acct"})
+	s := testSnowflakeTokenSession(t, snowflakeSessionTestOverrides{
+		loadToken: func(string, string) (snowflakeoauth.TokenSet, error) {
+			return snowflakeoauth.TokenSet{
+				AccessToken: "cached",
+				Expiry:      time.Now().Add(10 * time.Minute),
+			}, nil
+		},
+		refresh: func(context.Context, snowflakeoauth.ClientConfig, string) (snowflakeoauth.TokenSet, error) {
+			refreshCalled = true
+			return snowflakeoauth.TokenSet{}, nil
+		},
+		login: func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error) {
+			loginCalled = true
+			return snowflakeoauth.TokenSet{}, nil
+		},
+		persistToken: func(string, string, snowflakeoauth.TokenSet) error {
+			t.Fatal("persist should not be called")
+			return nil
+		},
+	})
+
+	got, err := callEnsureAccessToken(t, s)
 	if err != nil {
-		t.Fatalf("ensureSnowflakeAccessToken error: %v", err)
+		t.Fatalf("ensureAccessToken error: %v", err)
 	}
 	if got.AccessToken != "cached" {
 		t.Fatalf("expected cached token, got %q", got.AccessToken)
@@ -54,36 +91,35 @@ func TestEnsureSnowflakeAccessToken_UsesValidCachedToken(t *testing.T) {
 }
 
 func TestEnsureSnowflakeAccessToken_RefreshesExpiredToken(t *testing.T) {
-	reset := stubSnowflakeSessionDeps()
-	defer reset()
-
-	resolveSnowflakeOAuthClientFn = func(string) (string, string, error) { return "client-id", "secret", nil }
-	loadSnowflakeTokenFn = func(string, string) (snowflakeoauth.TokenSet, error) {
-		return snowflakeoauth.TokenSet{
-			AccessToken:  "expired",
-			RefreshToken: "refresh",
-			Expiry:       time.Now().Add(-10 * time.Minute),
-		}, nil
-	}
-	refreshSnowflakeTokenFn = func(context.Context, snowflakeoauth.ClientConfig, string) (snowflakeoauth.TokenSet, error) {
-		return snowflakeoauth.TokenSet{
-			AccessToken: "refreshed",
-			Expiry:      time.Now().Add(10 * time.Minute),
-		}, nil
-	}
-	loginSnowflakeTokenFn = func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error) {
-		t.Fatal("login should not be called when refresh succeeds")
-		return snowflakeoauth.TokenSet{}, nil
-	}
 	persisted := snowflakeoauth.TokenSet{}
-	persistSnowflakeTokenFn = func(_, _ string, tok snowflakeoauth.TokenSet) error {
-		persisted = tok
-		return nil
-	}
 
-	got, _, err := ensureSnowflakeAccessToken(context.Background(), configstore.Default(), "rhprod", "", "", configstore.SnowflakeAccount{Account: "acct"})
+	s := testSnowflakeTokenSession(t, snowflakeSessionTestOverrides{
+		loadToken: func(string, string) (snowflakeoauth.TokenSet, error) {
+			return snowflakeoauth.TokenSet{
+				AccessToken:  "expired",
+				RefreshToken: "refresh",
+				Expiry:       time.Now().Add(-10 * time.Minute),
+			}, nil
+		},
+		refresh: func(context.Context, snowflakeoauth.ClientConfig, string) (snowflakeoauth.TokenSet, error) {
+			return snowflakeoauth.TokenSet{
+				AccessToken: "refreshed",
+				Expiry:      time.Now().Add(10 * time.Minute),
+			}, nil
+		},
+		login: func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error) {
+			t.Fatal("login should not be called when refresh succeeds")
+			return snowflakeoauth.TokenSet{}, nil
+		},
+		persistToken: func(_, _ string, tok snowflakeoauth.TokenSet) error {
+			persisted = tok
+			return nil
+		},
+	})
+
+	got, err := callEnsureAccessToken(t, s)
 	if err != nil {
-		t.Fatalf("ensureSnowflakeAccessToken error: %v", err)
+		t.Fatalf("ensureAccessToken error: %v", err)
 	}
 	if got.AccessToken != "refreshed" {
 		t.Fatalf("expected refreshed token, got %q", got.AccessToken)
@@ -94,35 +130,34 @@ func TestEnsureSnowflakeAccessToken_RefreshesExpiredToken(t *testing.T) {
 }
 
 func TestEnsureSnowflakeAccessToken_FallsBackToLoginWhenRefreshFails(t *testing.T) {
-	reset := stubSnowflakeSessionDeps()
-	defer reset()
-
-	resolveSnowflakeOAuthClientFn = func(string) (string, string, error) { return "client-id", "secret", nil }
-	loadSnowflakeTokenFn = func(string, string) (snowflakeoauth.TokenSet, error) {
-		return snowflakeoauth.TokenSet{
-			AccessToken:  "expired",
-			RefreshToken: "refresh",
-			Expiry:       time.Now().Add(-5 * time.Minute),
-		}, nil
-	}
-	refreshSnowflakeTokenFn = func(context.Context, snowflakeoauth.ClientConfig, string) (snowflakeoauth.TokenSet, error) {
-		return snowflakeoauth.TokenSet{}, errors.New("refresh failed")
-	}
-	loginSnowflakeTokenFn = func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error) {
-		return snowflakeoauth.TokenSet{
-			AccessToken: "interactive",
-			Expiry:      time.Now().Add(5 * time.Minute),
-		}, nil
-	}
 	persisted := snowflakeoauth.TokenSet{}
-	persistSnowflakeTokenFn = func(_, _ string, tok snowflakeoauth.TokenSet) error {
-		persisted = tok
-		return nil
-	}
 
-	got, _, err := ensureSnowflakeAccessToken(context.Background(), configstore.Default(), "rhprod", "", "", configstore.SnowflakeAccount{Account: "acct"})
+	s := testSnowflakeTokenSession(t, snowflakeSessionTestOverrides{
+		loadToken: func(string, string) (snowflakeoauth.TokenSet, error) {
+			return snowflakeoauth.TokenSet{
+				AccessToken:  "expired",
+				RefreshToken: "refresh",
+				Expiry:       time.Now().Add(-5 * time.Minute),
+			}, nil
+		},
+		refresh: func(context.Context, snowflakeoauth.ClientConfig, string) (snowflakeoauth.TokenSet, error) {
+			return snowflakeoauth.TokenSet{}, errors.New("refresh failed")
+		},
+		login: func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error) {
+			return snowflakeoauth.TokenSet{
+				AccessToken: "interactive",
+				Expiry:      time.Now().Add(5 * time.Minute),
+			}, nil
+		},
+		persistToken: func(_, _ string, tok snowflakeoauth.TokenSet) error {
+			persisted = tok
+			return nil
+		},
+	})
+
+	got, err := callEnsureAccessToken(t, s)
 	if err != nil {
-		t.Fatalf("ensureSnowflakeAccessToken error: %v", err)
+		t.Fatalf("ensureAccessToken error: %v", err)
 	}
 	if got.AccessToken != "interactive" {
 		t.Fatalf("expected login token, got %q", got.AccessToken)
@@ -133,32 +168,31 @@ func TestEnsureSnowflakeAccessToken_FallsBackToLoginWhenRefreshFails(t *testing.
 }
 
 func TestEnsureSnowflakeAccessToken_LogsInWhenNoCachedToken(t *testing.T) {
-	reset := stubSnowflakeSessionDeps()
-	defer reset()
-
-	resolveSnowflakeOAuthClientFn = func(string) (string, string, error) { return "client-id", "secret", nil }
-	loadSnowflakeTokenFn = func(string, string) (snowflakeoauth.TokenSet, error) {
-		return snowflakeoauth.TokenSet{}, errSnowflakeTokensNotFound
-	}
-	refreshSnowflakeTokenFn = func(context.Context, snowflakeoauth.ClientConfig, string) (snowflakeoauth.TokenSet, error) {
-		t.Fatal("refresh should not be called without a cached token")
-		return snowflakeoauth.TokenSet{}, nil
-	}
-	loginSnowflakeTokenFn = func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error) {
-		return snowflakeoauth.TokenSet{
-			AccessToken: "interactive",
-			Expiry:      time.Now().Add(5 * time.Minute),
-		}, nil
-	}
 	persistCalled := false
-	persistSnowflakeTokenFn = func(string, string, snowflakeoauth.TokenSet) error {
-		persistCalled = true
-		return nil
-	}
 
-	got, _, err := ensureSnowflakeAccessToken(context.Background(), configstore.Default(), "rhprod", "", "", configstore.SnowflakeAccount{Account: "acct"})
+	s := testSnowflakeTokenSession(t, snowflakeSessionTestOverrides{
+		loadToken: func(string, string) (snowflakeoauth.TokenSet, error) {
+			return snowflakeoauth.TokenSet{}, errSnowflakeTokensNotFound
+		},
+		refresh: func(context.Context, snowflakeoauth.ClientConfig, string) (snowflakeoauth.TokenSet, error) {
+			t.Fatal("refresh should not be called without a cached token")
+			return snowflakeoauth.TokenSet{}, nil
+		},
+		login: func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error) {
+			return snowflakeoauth.TokenSet{
+				AccessToken: "interactive",
+				Expiry:      time.Now().Add(5 * time.Minute),
+			}, nil
+		},
+		persistToken: func(string, string, snowflakeoauth.TokenSet) error {
+			persistCalled = true
+			return nil
+		},
+	})
+
+	got, err := callEnsureAccessToken(t, s)
 	if err != nil {
-		t.Fatalf("ensureSnowflakeAccessToken error: %v", err)
+		t.Fatalf("ensureAccessToken error: %v", err)
 	}
 	if got.AccessToken != "interactive" {
 		t.Fatalf("expected login token, got %q", got.AccessToken)
@@ -169,22 +203,20 @@ func TestEnsureSnowflakeAccessToken_LogsInWhenNoCachedToken(t *testing.T) {
 }
 
 func TestEnsureSnowflakeAccessToken_ReturnsClearLoginFailure(t *testing.T) {
-	reset := stubSnowflakeSessionDeps()
-	defer reset()
+	s := testSnowflakeTokenSession(t, snowflakeSessionTestOverrides{
+		loadToken: func(string, string) (snowflakeoauth.TokenSet, error) {
+			return snowflakeoauth.TokenSet{}, errSnowflakeTokensNotFound
+		},
+		login: func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error) {
+			return snowflakeoauth.TokenSet{}, errors.New("browser canceled")
+		},
+		persistToken: func(string, string, snowflakeoauth.TokenSet) error {
+			t.Fatal("persist should not be called when login fails")
+			return nil
+		},
+	})
 
-	resolveSnowflakeOAuthClientFn = func(string) (string, string, error) { return "client-id", "secret", nil }
-	loadSnowflakeTokenFn = func(string, string) (snowflakeoauth.TokenSet, error) {
-		return snowflakeoauth.TokenSet{}, errSnowflakeTokensNotFound
-	}
-	loginSnowflakeTokenFn = func(context.Context, snowflakeoauth.ClientConfig) (snowflakeoauth.TokenSet, error) {
-		return snowflakeoauth.TokenSet{}, errors.New("browser canceled")
-	}
-	persistSnowflakeTokenFn = func(string, string, snowflakeoauth.TokenSet) error {
-		t.Fatal("persist should not be called when login fails")
-		return nil
-	}
-
-	_, _, err := ensureSnowflakeAccessToken(context.Background(), configstore.Default(), "rhprod", "", "", configstore.SnowflakeAccount{Account: "acct"})
+	_, err := callEnsureAccessToken(t, s)
 	if err == nil {
 		t.Fatal("expected login failure")
 	}
@@ -193,20 +225,5 @@ func TestEnsureSnowflakeAccessToken_ReturnsClearLoginFailure(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "browser canceled") {
 		t.Fatalf("expected wrapped login error, got: %v", err)
-	}
-}
-
-func stubSnowflakeSessionDeps() func() {
-	resolveOrig := resolveSnowflakeOAuthClientFn
-	loadOrig := loadSnowflakeTokenFn
-	persistOrig := persistSnowflakeTokenFn
-	refreshOrig := refreshSnowflakeTokenFn
-	loginOrig := loginSnowflakeTokenFn
-	return func() {
-		resolveSnowflakeOAuthClientFn = resolveOrig
-		loadSnowflakeTokenFn = loadOrig
-		persistSnowflakeTokenFn = persistOrig
-		refreshSnowflakeTokenFn = refreshOrig
-		loginSnowflakeTokenFn = loginOrig
 	}
 }

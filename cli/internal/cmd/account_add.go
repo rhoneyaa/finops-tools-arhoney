@@ -226,7 +226,7 @@ func runAccountAddSnowflake(cmd *cobra.Command, accountID string) error {
 		return err
 	}
 
-	clientID, clientSecret, err := resolveSnowflakeOAuthClient(accountAddSnowflakeSecrets)
+	clientID, clientSecret, err := configstore.ResolveSnowflakeOAuthClient(accountAddSnowflakeSecrets)
 	if err != nil {
 		return err
 	}
