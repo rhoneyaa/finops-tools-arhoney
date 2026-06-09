@@ -40,6 +40,7 @@ type SavingsPlansMetricView struct {
 // SavingsPlansAccountView is coverage and utilization for one account.
 type SavingsPlansAccountView struct {
 	AccountName string
+	IsLinked    bool
 	Coverage    []SavingsPlansMetricView
 	Utilization []SavingsPlansMetricView
 }
@@ -59,10 +60,12 @@ func NewSavingsPlansReportView(r coresp.Report) SavingsPlansReportView {
 	names := make([]string, 0, len(r.Accounts))
 	for _, acct := range r.Accounts {
 		names = append(names, acct.AccountName)
+		showStatus := !acct.IsLinked
 		accounts = append(accounts, SavingsPlansAccountView{
 			AccountName: acct.AccountName,
-			Coverage:    metricsToView(acct.Coverage, r.StartDate, r.EndDate, coverageStatusHTML),
-			Utilization: metricsToView(acct.Utilization, r.StartDate, r.EndDate, utilizationStatusHTML),
+			IsLinked:    acct.IsLinked,
+			Coverage:    metricsToView(acct.Coverage, r.StartDate, r.EndDate, coverageStatusHTML, showStatus),
+			Utilization: metricsToView(acct.Utilization, r.StartDate, r.EndDate, utilizationStatusHTML, showStatus),
 		})
 	}
 	return SavingsPlansReportView{
@@ -78,14 +81,19 @@ func metricsToView(
 	metrics []coresp.MonthlyMetric,
 	rangeStart, rangeEnd string,
 	statusFn func(float64) template.HTML,
+	showStatus bool,
 ) []SavingsPlansMetricView {
 	rows := make([]SavingsPlansMetricView, 0, len(metrics))
 	for _, m := range metrics {
+		var status template.HTML
+		if showStatus {
+			status = statusFn(m.Percentage)
+		}
 		rows = append(rows, SavingsPlansMetricView{
 			Month:               monthDisplayLabel(m.Month, rangeStart, rangeEnd),
 			Percentage:          m.Percentage,
 			PercentageFormatted: fmt.Sprintf("%.1f%%", m.Percentage),
-			StatusHTML:          statusFn(m.Percentage),
+			StatusHTML:          status,
 		})
 	}
 	return rows

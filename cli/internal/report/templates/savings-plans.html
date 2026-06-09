@@ -11,7 +11,7 @@
   </p>
 </header>
 
-{{ range .Accounts }}
+{{ range .Accounts }}{{ $acct := . }}
 <section class="account-section">
   <h2>{{ .AccountName }}</h2>
 
@@ -24,7 +24,7 @@
         <tr>
           <th>Month</th>
           <th class="amount">Coverage</th>
-          <th>Status</th>
+          {{ if not $acct.IsLinked }}<th>Status</th>{{ end }}
         </tr>
       </thead>
       <tbody>
@@ -32,7 +32,7 @@
         <tr>
           <td>{{ .Month }}</td>
           <td class="amount">{{ .PercentageFormatted }}</td>
-          <td>{{ .StatusHTML }}</td>
+          {{ if not $acct.IsLinked }}<td>{{ .StatusHTML }}</td>{{ end }}
         </tr>
         {{ end }}
       </tbody>
@@ -51,7 +51,7 @@
         <tr>
           <th>Month</th>
           <th class="amount">Utilization</th>
-          <th>Status</th>
+          {{ if not $acct.IsLinked }}<th>Status</th>{{ end }}
         </tr>
       </thead>
       <tbody>
@@ -59,7 +59,7 @@
         <tr>
           <td>{{ .Month }}</td>
           <td class="amount">{{ .PercentageFormatted }}</td>
-          <td>{{ .StatusHTML }}</td>
+          {{ if not $acct.IsLinked }}<td>{{ .StatusHTML }}</td>{{ end }}
         </tr>
         {{ end }}
       </tbody>

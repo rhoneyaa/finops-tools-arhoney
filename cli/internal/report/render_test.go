@@ -123,6 +123,53 @@ func TestRenderSavingsPlansHTML(t *testing.T) {
 	}
 }
 
+func TestNewSavingsPlansReportView_linkedOmitsStatus(t *testing.T) {
+	view := NewSavingsPlansReportView(coresp.Report{
+		StartDate: "2026-01-01",
+		EndDate:   "2026-03-31",
+		Accounts: []coresp.AccountReport{{
+			AccountName: "Quay",
+			IsLinked:    true,
+			Coverage: []coresp.MonthlyMetric{
+				{Month: "2026-01", Percentage: 50.0},
+			},
+		}},
+	})
+	if !view.Accounts[0].IsLinked {
+		t.Fatal("expected linked account view")
+	}
+	if view.Accounts[0].Coverage[0].StatusHTML != "" {
+		t.Errorf("linked coverage status = %q, want empty", view.Accounts[0].Coverage[0].StatusHTML)
+	}
+}
+
+func TestRenderSavingsPlansHTML_linkedOmitsStatusColumn(t *testing.T) {
+	var buf bytes.Buffer
+	err := RenderSavingsPlansHTML(&buf, coresp.Report{
+		GeneratedAt: time.Date(2026, 5, 26, 10, 0, 0, 0, time.UTC),
+		StartDate:   "2026-01-01",
+		EndDate:     "2026-03-31",
+		Accounts: []coresp.AccountReport{{
+			AccountName: "Quay",
+			IsLinked:    true,
+			Coverage: []coresp.MonthlyMetric{
+				{Month: "2026-01", Percentage: 72.0},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if strings.Contains(out, "Critical") || strings.Contains(out, "Good") || strings.Contains(out, "Low") {
+		t.Errorf("linked account section should not include status labels; got excerpt:\n%s", excerptAround(out, "Quay"))
+	}
+	quaySection := excerptAround(out, "Quay")
+	if strings.Count(quaySection, "<th>Status</th>") != 0 {
+		t.Errorf("linked account should not render Status column header; got:\n%s", quaySection)
+	}
+}
+
 func TestNewSavingsPlansReportView_statusThresholds(t *testing.T) {
 	view := NewSavingsPlansReportView(coresp.Report{
 		StartDate: "2026-01-01",

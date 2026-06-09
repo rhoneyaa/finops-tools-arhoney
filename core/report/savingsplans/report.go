@@ -43,6 +43,7 @@ type MonthlyMetric struct {
 type AccountReport struct {
 	AccountID   string
 	AccountName string
+	IsLinked    bool
 	Coverage    []MonthlyMetric
 	Utilization []MonthlyMetric
 }
@@ -78,12 +79,11 @@ func buildWith(ctx context.Context, newClient ceClientFactory, accounts []cost.A
 	if len(accounts) == 0 {
 		return Report{}, fmt.Errorf("at least one account required")
 	}
-	targets := cost.FilterOverlappingTargets(accounts)
 	dr = monthlyCERange(dr)
 	ceClients := make(map[string]SavingsPlansAPI)
 
-	sections := make([]AccountReport, 0, len(targets))
-	for _, acct := range targets {
+	sections := make([]AccountReport, 0, len(accounts))
+	for _, acct := range accounts {
 		credID := acct.CredentialsAccountID()
 		ce, ok := ceClients[credID]
 		if !ok {
@@ -91,13 +91,14 @@ func buildWith(ctx context.Context, newClient ceClientFactory, accounts []cost.A
 			ceClients[credID] = ce
 		}
 
-		coverage, utilization, err := buildAccountWith(ctx, ce, dr, accountFilter(acct))
+		coverage, utilization, err := buildAccountWith(ctx, ce, dr, acct)
 		if err != nil {
 			return Report{}, fmt.Errorf("%s: %w", accountDisplayName(acct), err)
 		}
 		sections = append(sections, AccountReport{
 			AccountID:   acct.AccountID,
 			AccountName: accountDisplayName(acct),
+			IsLinked:    acct.IsLinked(),
 			Coverage:    coverage,
 			Utilization: utilization,
 		})
@@ -116,9 +117,10 @@ func buildAccountWith(
 	ctx context.Context,
 	ce SavingsPlansAPI,
 	dr cost.DateRange,
-	filter *types.Expression,
+	acct cost.AccountTarget,
 ) ([]MonthlyMetric, []MonthlyMetric, error) {
 	dr = monthlyCERange(dr)
+	filter := linkedAccountFilter(acct)
 	interval := &types.DateInterval{
 		Start: aws.String(dr.Start.Format("2006-01-02")),
 		End:   aws.String(dr.End.Format("2006-01-02")),
@@ -180,7 +182,7 @@ func isDataUnavailable(err error) bool {
 	return errors.As(err, &du)
 }
 
-func accountFilter(acct cost.AccountTarget) *types.Expression {
+func linkedAccountFilter(acct cost.AccountTarget) *types.Expression {
 	if !acct.ScopeToAccount() {
 		return nil
 	}

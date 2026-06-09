@@ -19,8 +19,9 @@ type fakeSavingsPlansClient struct {
 	coverageErr     error
 	utilizationErr  error
 
-	coverageByAccount    map[string]*costexplorer.GetSavingsPlansCoverageOutput
-	utilizationByAccount map[string]*costexplorer.GetSavingsPlansUtilizationOutput
+	coverageByAccount         map[string]*costexplorer.GetSavingsPlansCoverageOutput
+	utilizationByAccount      map[string]*costexplorer.GetSavingsPlansUtilizationOutput
+	utilizationErrByAccount   map[string]error
 }
 
 func (f *fakeSavingsPlansClient) GetSavingsPlansCoverage(
@@ -44,11 +45,17 @@ func (f *fakeSavingsPlansClient) GetSavingsPlansUtilization(
 	in *costexplorer.GetSavingsPlansUtilizationInput,
 	_ ...func(*costexplorer.Options),
 ) (*costexplorer.GetSavingsPlansUtilizationOutput, error) {
+	acctKey := linkedAccountFromFilter(in.Filter)
+	if f.utilizationErrByAccount != nil {
+		if err, ok := f.utilizationErrByAccount[acctKey]; ok {
+			return nil, err
+		}
+	}
 	if f.utilizationErr != nil {
 		return nil, f.utilizationErr
 	}
 	if f.utilizationByAccount != nil {
-		if resp, ok := f.utilizationByAccount[linkedAccountFromFilter(in.Filter)]; ok {
+		if resp, ok := f.utilizationByAccount[acctKey]; ok {
 			return resp, nil
 		}
 	}
@@ -185,7 +192,7 @@ func TestBuildAccountWith_HappyPath(t *testing.T) {
 		End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 	}
 
-	coverage, utilization, err := buildAccountWith(context.Background(), fake, dr, nil)
+	coverage, utilization, err := buildAccountWith(context.Background(), fake, dr, cost.AccountTarget{})
 	if err != nil {
 		t.Fatalf("buildAccountWith returned error: %v", err)
 	}
@@ -200,6 +207,58 @@ func TestBuildAccountWith_HappyPath(t *testing.T) {
 	}
 	if utilization[0].Percentage != 85.5 {
 		t.Errorf("Utilization[0].Percentage = %f, want 85.5", utilization[0].Percentage)
+	}
+}
+
+func TestBuild_LinkedWithPayer_NoBorrowedUtilization(t *testing.T) {
+	fake := &fakeSavingsPlansClient{
+		coverageByAccount: map[string]*costexplorer.GetSavingsPlansCoverageOutput{
+			"111111111111": {
+				SavingsPlansCoverages: []types.SavingsPlansCoverage{
+					{
+						TimePeriod: &types.DateInterval{Start: aws.String("2026-01-01"), End: aws.String("2026-02-01")},
+						Coverage:   &types.SavingsPlansCoverageData{CoveragePercentage: aws.String("72.0")},
+					},
+				},
+			},
+			"": {SavingsPlansCoverages: []types.SavingsPlansCoverage{}},
+		},
+		utilizationByAccount: map[string]*costexplorer.GetSavingsPlansUtilizationOutput{
+			"": {
+				SavingsPlansUtilizationsByTime: []types.SavingsPlansUtilizationByTime{
+					{
+						TimePeriod:  &types.DateInterval{Start: aws.String("2026-01-01"), End: aws.String("2026-02-01")},
+						Utilization: &types.SavingsPlansUtilization{UtilizationPercentage: aws.String("88.0")},
+					},
+				},
+			},
+		},
+		utilizationErrByAccount: map[string]error{
+			"111111111111": &types.DataUnavailableException{Message: aws.String("unavailable")},
+		},
+	}
+	dr := cost.DateRange{
+		Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+	}
+	report, err := buildWith(context.Background(), func(aws.Config) SavingsPlansAPI { return fake }, []cost.AccountTarget{
+		{AccountID: "123456789012", DisplayName: "Payer"},
+		{AccountID: "111111111111", DisplayName: "Quay", PayerAccountID: "123456789012"},
+	}, dr)
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if len(report.Accounts) != 2 {
+		t.Fatalf("Accounts len = %d, want 2", len(report.Accounts))
+	}
+	if report.Accounts[1].Coverage[0].Percentage != 72.0 {
+		t.Errorf("linked coverage = %f, want 72.0", report.Accounts[1].Coverage[0].Percentage)
+	}
+	if len(report.Accounts[1].Utilization) != 0 {
+		t.Errorf("linked utilization should be empty without owned SPs, got %d rows", len(report.Accounts[1].Utilization))
+	}
+	if report.Accounts[0].Utilization[0].Percentage != 88.0 {
+		t.Errorf("payer utilization = %f, want 88.0", report.Accounts[0].Utilization[0].Percentage)
 	}
 }
 
@@ -268,6 +327,9 @@ func TestBuild_MultipleAccounts(t *testing.T) {
 	if report.Accounts[0].AccountName != "Member One" {
 		t.Errorf("Accounts[0].AccountName = %q, want Member One", report.Accounts[0].AccountName)
 	}
+	if !report.Accounts[0].IsLinked {
+		t.Error("member account should be marked linked")
+	}
 	if report.Accounts[0].Coverage[0].Percentage != 80.0 {
 		t.Errorf("member one coverage = %f, want 80.0", report.Accounts[0].Coverage[0].Percentage)
 	}
@@ -289,7 +351,7 @@ func TestBuildAccountWith_CoverageAPIError(t *testing.T) {
 	_, _, err := buildAccountWith(context.Background(), fake, cost.DateRange{
 		Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
-	}, nil)
+	}, cost.AccountTarget{})
 	if err == nil {
 		t.Fatal("expected error from coverage API failure, got nil")
 	}
@@ -331,10 +393,11 @@ func TestBuildAccountWith_DataUnavailableUtilization(t *testing.T) {
 		},
 		utilizationErr: &types.DataUnavailableException{Message: aws.String("unavailable")},
 	}
+	linked := cost.AccountTarget{AccountID: "111111111111", PayerAccountID: "123456789012"}
 	coverage, utilization, err := buildAccountWith(context.Background(), fake, cost.DateRange{
 		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 		End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
-	}, nil)
+	}, linked)
 	if err != nil {
 		t.Fatalf("buildAccountWith returned error: %v", err)
 	}
@@ -353,7 +416,7 @@ func TestBuildAccountWith_NilCoverageResponse(t *testing.T) {
 	_, _, err := buildAccountWith(context.Background(), fake, cost.DateRange{
 		Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
-	}, nil)
+	}, cost.AccountTarget{})
 	if err == nil {
 		t.Fatal("expected error for nil coverage response, got nil")
 	}
@@ -367,7 +430,7 @@ func TestBuildAccountWith_NilUtilizationResponse(t *testing.T) {
 	_, _, err := buildAccountWith(context.Background(), fake, cost.DateRange{
 		Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
-	}, nil)
+	}, cost.AccountTarget{})
 	if err == nil {
 		t.Fatal("expected error for nil utilization response, got nil")
 	}
@@ -381,7 +444,7 @@ func TestBuildAccountWith_UtilizationAPIError(t *testing.T) {
 	_, _, err := buildAccountWith(context.Background(), fake, cost.DateRange{
 		Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
-	}, nil)
+	}, cost.AccountTarget{})
 	if err == nil {
 		t.Fatal("expected error from utilization API failure, got nil")
 	}
