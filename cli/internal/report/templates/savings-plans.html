@@ -1,0 +1,70 @@
+{{ define "title" }}Savings Plans Report — {{ .AccountSummary }}{{ end }}
+
+{{ define "content" }}
+<header>
+  <h1>Savings Plans Report</h1>
+  <p class="meta">
+    <strong>Account:</strong> {{ .AccountSummary }}<br>
+    <strong>Period:</strong> {{ .StartDate }} — {{ .EndDate }}<br>
+    <strong>Generated:</strong> {{ .GeneratedAt }}
+  </p>
+</header>
+
+<section>
+  <h2>Coverage</h2>
+  <p class="meta">Percentage of eligible on-demand spend covered by Savings Plans</p>
+  {{ if .Coverage }}
+  <table>
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th class="amount">Coverage</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Coverage }}
+      <tr>
+        <td>{{ .Month }}</td>
+        <td class="amount">{{ .PercentageFormatted }}</td>
+        <td>{{ .StatusHTML }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  {{ else }}
+  <p class="meta">No coverage data available for this period.</p>
+  {{ end }}
+</section>
+
+<section>
+  <h2>Utilization</h2>
+  <p class="meta">Percentage of purchased Savings Plans commitment that was used</p>
+  {{ if .Utilization }}
+  <table>
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th class="amount">Utilization</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Utilization }}
+      <tr>
+        <td>{{ .Month }}</td>
+        <td class="amount">{{ .PercentageFormatted }}</td>
+        <td>{{ .StatusHTML }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  {{ else }}
+  <p class="meta">No utilization data available for this period.</p>
+  {{ end }}
+</section>
+{{ end }}
+
+{{ define "savings-plans" }}
+{{ template "layout" . }}
+{{ end }}
