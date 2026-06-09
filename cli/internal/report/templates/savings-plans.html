@@ -23,7 +23,7 @@
       <thead>
         <tr>
           <th>Month</th>
-          <th class="amount">Coverage</th>
+          <th>Coverage</th>
           {{ if not $acct.IsLinked }}<th>Status</th>{{ end }}
         </tr>
       </thead>
@@ -31,7 +31,7 @@
         {{ range .Coverage }}
         <tr>
           <td>{{ .Month }}</td>
-          <td class="amount">{{ .PercentageFormatted }}</td>
+          <td>{{ .PercentageFormatted }}</td>
           {{ if not $acct.IsLinked }}<td>{{ .StatusHTML }}</td>{{ end }}
         </tr>
         {{ end }}
@@ -50,7 +50,7 @@
       <thead>
         <tr>
           <th>Month</th>
-          <th class="amount">Utilization</th>
+          <th>Utilization</th>
           {{ if not $acct.IsLinked }}<th>Status</th>{{ end }}
         </tr>
       </thead>
@@ -58,7 +58,7 @@
         {{ range .Utilization }}
         <tr>
           <td>{{ .Month }}</td>
-          <td class="amount">{{ .PercentageFormatted }}</td>
+          <td>{{ .PercentageFormatted }}</td>
           {{ if not $acct.IsLinked }}<td>{{ .StatusHTML }}</td>{{ end }}
         </tr>
         {{ end }}
