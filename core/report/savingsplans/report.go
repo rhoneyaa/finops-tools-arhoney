@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -37,32 +38,84 @@ type MonthlyMetric struct {
 	Percentage float64 // 0–100
 }
 
+// AccountReport holds Savings Plans coverage and utilization for one account.
+type AccountReport struct {
+	AccountID   string
+	AccountName string
+	Coverage    []MonthlyMetric
+	Utilization []MonthlyMetric
+}
+
 // Report holds Savings Plans coverage and utilization ready for HTML rendering.
 type Report struct {
 	GeneratedAt time.Time
 	StartDate   string
 	EndDate     string
-	Coverage    []MonthlyMetric
-	Utilization []MonthlyMetric
+	Accounts    []AccountReport
 }
 
 // Build fetches Savings Plans coverage and utilization from AWS Cost Explorer
-// for the given date range, using cfg for authentication.
-func Build(ctx context.Context, cfg aws.Config, dr cost.DateRange) (Report, error) {
+// for each account in the given date range.
+func Build(ctx context.Context, accounts []cost.AccountTarget, dr cost.DateRange) (Report, error) {
+	return buildWith(ctx, defaultCEClientFactory, accounts, dr)
+}
+
+type ceClientFactory func(cfg aws.Config) SavingsPlansAPI
+
+func defaultCEClientFactory(cfg aws.Config) SavingsPlansAPI {
 	region := cfg.Region
 	if region == "" {
 		region = costExplorerRegion
 	}
 	cfg.Region = region
-
-	ce := costexplorer.NewFromConfig(cfg, func(o *costexplorer.Options) {
+	return costexplorer.NewFromConfig(cfg, func(o *costexplorer.Options) {
 		o.Region = costExplorerRegion
 	})
-	return buildWith(ctx, ce, dr)
 }
 
-// buildWith is the testable core: it accepts any SavingsPlansAPI implementation.
-func buildWith(ctx context.Context, ce SavingsPlansAPI, dr cost.DateRange) (Report, error) {
+func buildWith(ctx context.Context, newClient ceClientFactory, accounts []cost.AccountTarget, dr cost.DateRange) (Report, error) {
+	if len(accounts) == 0 {
+		return Report{}, fmt.Errorf("at least one account required")
+	}
+	targets := cost.FilterOverlappingTargets(accounts)
+	ceClients := make(map[string]SavingsPlansAPI)
+
+	sections := make([]AccountReport, 0, len(targets))
+	for _, acct := range targets {
+		credID := acct.CredentialsAccountID()
+		ce, ok := ceClients[credID]
+		if !ok {
+			ce = newClient(acct.AWSConfig)
+			ceClients[credID] = ce
+		}
+
+		coverage, utilization, err := buildAccountWith(ctx, ce, dr, accountFilter(acct))
+		if err != nil {
+			return Report{}, fmt.Errorf("%s: %w", accountDisplayName(acct), err)
+		}
+		sections = append(sections, AccountReport{
+			AccountID:   acct.AccountID,
+			AccountName: accountDisplayName(acct),
+			Coverage:    coverage,
+			Utilization: utilization,
+		})
+	}
+
+	return Report{
+		GeneratedAt: time.Now().UTC(),
+		StartDate:   dr.Start.Format("2006-01-02"),
+		EndDate:     dr.End.AddDate(0, 0, -1).Format("2006-01-02"),
+		Accounts:    sections,
+	}, nil
+}
+
+// buildAccountWith is the testable core for one account scope.
+func buildAccountWith(
+	ctx context.Context,
+	ce SavingsPlansAPI,
+	dr cost.DateRange,
+	filter *types.Expression,
+) ([]MonthlyMetric, []MonthlyMetric, error) {
 	interval := &types.DateInterval{
 		Start: aws.String(dr.Start.Format("2006-01-02")),
 		End:   aws.String(dr.End.Format("2006-01-02")),
@@ -71,29 +124,46 @@ func buildWith(ctx context.Context, ce SavingsPlansAPI, dr cost.DateRange) (Repo
 	coverageResp, err := ce.GetSavingsPlansCoverage(ctx, &costexplorer.GetSavingsPlansCoverageInput{
 		TimePeriod:  interval,
 		Granularity: types.GranularityMonthly,
+		Filter:      filter,
 	})
 	if err != nil {
-		return Report{}, fmt.Errorf("fetch SP coverage: %w", err)
+		return nil, nil, fmt.Errorf("fetch SP coverage: %w", err)
 	}
 
 	utilizationResp, err := ce.GetSavingsPlansUtilization(ctx, &costexplorer.GetSavingsPlansUtilizationInput{
 		TimePeriod:  interval,
 		Granularity: types.GranularityMonthly,
+		Filter:      filter,
 	})
 	if err != nil {
-		return Report{}, fmt.Errorf("fetch SP utilization: %w", err)
+		return nil, nil, fmt.Errorf("fetch SP utilization: %w", err)
 	}
 
-	coverage := parseCoverageMetrics(coverageResp.SavingsPlansCoverages)
-	utilization := parseUtilizationMetrics(utilizationResp.SavingsPlansUtilizationsByTime)
+	return parseCoverageMetrics(coverageResp.SavingsPlansCoverages),
+		parseUtilizationMetrics(utilizationResp.SavingsPlansUtilizationsByTime),
+		nil
+}
 
-	return Report{
-		GeneratedAt: time.Now().UTC(),
-		StartDate:   dr.Start.Format("2006-01"),
-		EndDate:     lastMonthLabel(dr.End),
-		Coverage:    coverage,
-		Utilization: utilization,
-	}, nil
+func accountFilter(acct cost.AccountTarget) *types.Expression {
+	if !acct.ScopeToAccount() {
+		return nil
+	}
+	return &types.Expression{
+		Dimensions: &types.DimensionValues{
+			Key:    types.DimensionLinkedAccount,
+			Values: []string{acct.AccountID},
+		},
+	}
+}
+
+func accountDisplayName(acct cost.AccountTarget) string {
+	if name := strings.TrimSpace(acct.DisplayName); name != "" {
+		return name
+	}
+	if alias := strings.TrimSpace(acct.DisplayAlias); alias != "" {
+		return alias
+	}
+	return strings.TrimSpace(acct.AccountID)
 }
 
 // parseCoverageMetrics converts AWS SavingsPlansCoverages to sorted MonthlyMetric slice.
@@ -142,11 +212,6 @@ func monthLabel(dateStr string) string {
 	return dateStr
 }
 
-// lastMonthLabel returns the YYYY-MM label for the month immediately before the exclusive end date.
-func lastMonthLabel(end time.Time) string {
-	prev := end.AddDate(0, -1, 0)
-	return prev.Format("2006-01")
-}
 
 // parseFloatPtr parses a *string to float64, returning 0 on nil or error.
 func parseFloatPtr(s *string) float64 {

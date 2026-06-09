@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"strings"
 	"sync"
+	"time"
 
 	coresp "github.com/openshift-online/finops-tools/core/report/savingsplans"
 )
@@ -35,52 +37,93 @@ type SavingsPlansMetricView struct {
 	StatusHTML          template.HTML
 }
 
+// SavingsPlansAccountView is coverage and utilization for one account.
+type SavingsPlansAccountView struct {
+	AccountName string
+	Coverage    []SavingsPlansMetricView
+	Utilization []SavingsPlansMetricView
+}
+
 // SavingsPlansReportView is the template context for savings-plans.html.
 type SavingsPlansReportView struct {
 	GeneratedAt    string
 	AccountSummary string
 	StartDate      string
 	EndDate        string
-	Coverage       []SavingsPlansMetricView
-	Utilization    []SavingsPlansMetricView
+	Accounts       []SavingsPlansAccountView
 }
 
 // NewSavingsPlansReportView maps a core savingsplans.Report to the template context.
-func NewSavingsPlansReportView(r coresp.Report, accountSummary string) SavingsPlansReportView {
+func NewSavingsPlansReportView(r coresp.Report) SavingsPlansReportView {
+	accounts := make([]SavingsPlansAccountView, 0, len(r.Accounts))
+	names := make([]string, 0, len(r.Accounts))
+	for _, acct := range r.Accounts {
+		names = append(names, acct.AccountName)
+		accounts = append(accounts, SavingsPlansAccountView{
+			AccountName: acct.AccountName,
+			Coverage:    metricsToView(acct.Coverage, r.StartDate, r.EndDate, coverageStatusHTML),
+			Utilization: metricsToView(acct.Utilization, r.StartDate, r.EndDate, utilizationStatusHTML),
+		})
+	}
 	return SavingsPlansReportView{
 		GeneratedAt:    r.GeneratedAt.UTC().Format("2006-01-02 15:04:05 UTC"),
-		AccountSummary: accountSummary,
+		AccountSummary: strings.Join(names, ", "),
 		StartDate:      r.StartDate,
 		EndDate:        r.EndDate,
-		Coverage:       coverageMetricsToView(r.Coverage),
-		Utilization:    utilizationMetricsToView(r.Utilization),
+		Accounts:       accounts,
 	}
 }
 
-func coverageMetricsToView(metrics []coresp.MonthlyMetric) []SavingsPlansMetricView {
+func metricsToView(
+	metrics []coresp.MonthlyMetric,
+	rangeStart, rangeEnd string,
+	statusFn func(float64) template.HTML,
+) []SavingsPlansMetricView {
 	rows := make([]SavingsPlansMetricView, 0, len(metrics))
 	for _, m := range metrics {
 		rows = append(rows, SavingsPlansMetricView{
-			Month:               m.Month,
+			Month:               monthDisplayLabel(m.Month, rangeStart, rangeEnd),
 			Percentage:          m.Percentage,
 			PercentageFormatted: fmt.Sprintf("%.1f%%", m.Percentage),
-			StatusHTML:          coverageStatusHTML(m.Percentage),
+			StatusHTML:          statusFn(m.Percentage),
 		})
 	}
 	return rows
 }
 
-func utilizationMetricsToView(metrics []coresp.MonthlyMetric) []SavingsPlansMetricView {
-	rows := make([]SavingsPlansMetricView, 0, len(metrics))
-	for _, m := range metrics {
-		rows = append(rows, SavingsPlansMetricView{
-			Month:               m.Month,
-			Percentage:          m.Percentage,
-			PercentageFormatted: fmt.Sprintf("%.1f%%", m.Percentage),
-			StatusHTML:          utilizationStatusHTML(m.Percentage),
-		})
+// monthDisplayLabel annotates YYYY-MM when the report period only covers part of that month.
+func monthDisplayLabel(month, rangeStart, rangeEnd string) string {
+	start, err := time.ParseInLocation("2006-01-02", rangeStart, time.UTC)
+	if err != nil {
+		return month
 	}
-	return rows
+	end, err := time.ParseInLocation("2006-01-02", rangeEnd, time.UTC)
+	if err != nil {
+		return month
+	}
+	if month != start.Format("2006-01") && month != end.Format("2006-01") {
+		return month
+	}
+
+	monthStart, err := time.ParseInLocation("2006-01", month, time.UTC)
+	if err != nil {
+		return month
+	}
+	lastDay := monthStart.AddDate(0, 1, -1).Day()
+
+	startPartial := month == start.Format("2006-01") && start.Day() != 1
+	endPartial := month == end.Format("2006-01") && end.Day() != lastDay
+
+	switch {
+	case startPartial && endPartial:
+		return fmt.Sprintf("%s (%d – %d)", month, start.Day(), end.Day())
+	case startPartial:
+		return fmt.Sprintf("%s (from %d)", month, start.Day())
+	case endPartial:
+		return fmt.Sprintf("%s (through %d)", month, end.Day())
+	default:
+		return month
+	}
 }
 
 func coverageStatusHTML(pct float64) template.HTML {
@@ -106,12 +149,12 @@ func utilizationStatusHTML(pct float64) template.HTML {
 }
 
 // RenderSavingsPlansHTML renders the savings plans report as HTML to w.
-func RenderSavingsPlansHTML(w io.Writer, r coresp.Report, accountSummary string) error {
+func RenderSavingsPlansHTML(w io.Writer, r coresp.Report) error {
 	t, err := savingsPlansTemplateCompiled()
 	if err != nil {
 		return fmt.Errorf("compile savings-plans template: %w", err)
 	}
-	view := NewSavingsPlansReportView(r, accountSummary)
+	view := NewSavingsPlansReportView(r)
 	if err := t.ExecuteTemplate(w, savingsPlansTemplate, view); err != nil {
 		return fmt.Errorf("render savings-plans template: %w", err)
 	}
