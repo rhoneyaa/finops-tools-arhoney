@@ -29,10 +29,16 @@ func (f File) SetDefault(fqn, value string) (File, error) {
 	if err := validateDefaultValue(key, value); err != nil {
 		return File{}, err
 	}
+	value = strings.TrimSpace(value)
+	if key == DefaultFQNSnowflakeAccountAlias {
+		if _, ok := f.SnowflakeAccountForAlias(value); !ok {
+			return File{}, fmt.Errorf("snowflake account alias %q is not registered", value)
+		}
+	}
 	if f.Defaults == nil {
 		f.Defaults = make(map[string]string)
 	}
-	f.Defaults[key] = strings.TrimSpace(value)
+	f.Defaults[key] = value
 	return f, nil
 }
 
@@ -73,11 +79,16 @@ func validateDefaultValue(fqn, value string) error {
 		return fmt.Errorf("default %s is not supported yet", fqn)
 	case DefaultFQNCostDays, DefaultFQNCostMonths, DefaultFQNCostFrom, DefaultFQNCostTo, DefaultFQNCostExcludeRecentDays:
 		return validateCostDefaultValue(fqn, value)
+	case DefaultFQNSnowflakeSSOIssuer, DefaultFQNSnowflakeOAuthAudience, DefaultFQNSnowflakeAccountAlias,
+		DefaultFQNSnowflakeWarehouse, DefaultFQNSnowflakeRole, DefaultFQNSnowflakeDatabase, DefaultFQNSnowflakeSchema:
+		return validateSnowflakeDefaultValue(fqn, value)
 	default:
-		return fmt.Errorf("unknown default %q (supported: %s, %s, %s, %s, %s, %s, %s)",
+		return fmt.Errorf("unknown default %q (supported: %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
 			fqn,
 			DefaultFQNAWSAuthMethod, DefaultFQNAWSLinkedRole,
-			DefaultFQNCostDays, DefaultFQNCostMonths, DefaultFQNCostFrom, DefaultFQNCostTo, DefaultFQNCostExcludeRecentDays)
+			DefaultFQNCostDays, DefaultFQNCostMonths, DefaultFQNCostFrom, DefaultFQNCostTo, DefaultFQNCostExcludeRecentDays,
+			DefaultFQNSnowflakeSSOIssuer, DefaultFQNSnowflakeOAuthAudience, DefaultFQNSnowflakeAccountAlias,
+			DefaultFQNSnowflakeWarehouse, DefaultFQNSnowflakeRole, DefaultFQNSnowflakeDatabase, DefaultFQNSnowflakeSchema)
 	}
 }
 

@@ -20,12 +20,13 @@ A future REST API can live in a separate module and import the same `core` packa
 | `output/` | Human-readable tables and `--format` handlers |
 | `format/` | Currency formatting for CLI output |
 | `configstore/` | FinOps YAML config read/write |
+| `snowflakeoauth/`, `snowflakecred/` | Red Hat SSO OAuth login and token storage |
 | `account/` | Account login flows (`account add` business logic; not the `cmd` noun files) |
 | `aws/`, `awsauth/`, `awslogin/`, `awsrole/` | Credentials, auth orchestration, SAML, role ARNs |
 | `report/` | HTML templates and charts (distinct from `core/report` data assembly) |
 | `progress/` | Progress lines on stderr |
 
-`core/` grows by domain noun (`core/cost`, `core/report`), not by CLI verb. Shared target/credential orchestration stays in `cli/` until a third command needs it; see `.cursor/rules/cli-commands.mdc` for when to split `cmd/` into per-noun subpackages.
+`core/` grows by domain noun (`core/cost`, `core/report`, `core/snowflake`), not by CLI verb. Shared target/credential orchestration stays in `cli/` until a third command needs it; see `.cursor/rules/cli-commands.mdc` for when to split `cmd/` into per-noun subpackages.
 
 ## CLI commands
 
@@ -83,7 +84,15 @@ aws:
       role: OrganizationAccountAccessRole
 gcp:
   account_aliases: {}
+snowflake:
+  account_aliases:
+    rhprod:
+      account: ORG-ACCOUNT
+      role: PUBLIC
+      sso: prod
 ```
+
+OAuth client ID and secret are **not** stored in `config.yaml`. Use a separate secrets file (default `~/.config/finops/snowflake-oauth.yaml`, mode `0600`) or environment variables.
 
 Set defaults using fully qualified names (used when `--auth-method` is omitted on `account add`):
 
@@ -120,6 +129,50 @@ List registered accounts (payer vs linked):
 ```bash
 finops account list
 finops account list aws
+finops account list snowflake
+```
+
+### Snowflake (Red Hat SSO OAuth)
+
+Query Snowflake using OAuth tokens from [Red Hat SSO](https://dataverse.pages.redhat.com/platform/snowflake/red-hat-sso-access/). The access token must include audience `dataverse-snowflake` and scope `session:role-any` (usually via IAM default client scopes / mappers, not by requesting scopes in the authorize URL). The CLI OAuth redirect URI is fixed at `http://127.0.0.1:8765/oauth/callback` (must be registered on the SSO client).
+
+Session settings (account, role, warehouse, database, schema) are stored only in the finops config file (`~/.config/finops/config.yaml`). The CLI does **not** read `~/.snowflake/connections.toml` or Snowflake CLI connection profiles. Configure each alias with `finops account add snowflake` flags and/or `snowflake.*` defaults below.
+
+Store OAuth client credentials (never commit these):
+
+```bash
+finops config snowflake oauth set --client-id finops-tools-dataverse --client-secret "$SECRET"
+# or: export FINOPS_SNOWFLAKE_OAUTH_CLIENT_ID=... FINOPS_SNOWFLAKE_OAUTH_CLIENT_SECRET=...
+```
+
+Optional defaults:
+
+```bash
+finops config default set --name snowflake.sso_issuer --value prod   # or stage (pre-prod Snowflake only)
+finops config default set --name snowflake.oauth_audience --value dataverse-snowflake
+# Override which registered alias finops snowflake uses (first account add sets this automatically):
+# finops config default set --name snowflake.account_alias --value rhprod
+# Shared session defaults when an alias omits role/warehouse/database/schema:
+# finops config default set --name snowflake.warehouse --value MY_WH
+# finops config default set --name snowflake.role --value MY_ROLE
+```
+
+Register a Snowflake account (opens browser for Red Hat SSO, stores refresh token in `~/.config/finops/snowflake-tokens.yaml`). A warehouse is required (per alias or via `snowflake.warehouse` default):
+
+```bash
+finops account add snowflake myorg-sandbox --alias sandbox \
+  --snowflake-role MY_ROLE \
+  --warehouse MY_WH \
+  --database MY_DB --schema MY_SCHEMA
+finops account add snowflake myorg-prod --alias prod --force   # re-login
+```
+
+Run SQL:
+
+```bash
+finops snowflake query --sql "SELECT CURRENT_USER(), CURRENT_ROLE()"
+finops snowflake query --account-alias sandbox --sql "SELECT 1"
+finops snowflake query --sql "SELECT 1" --format json
 ```
 
 Manage AWS Organizations tags on an account (registered alias or 12-digit account ID):
