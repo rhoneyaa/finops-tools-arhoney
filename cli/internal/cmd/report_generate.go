@@ -224,14 +224,17 @@ func runReportGenerate(cmd *cobra.Command, args []string) error {
 		if len(targets) == 0 {
 			return fmt.Errorf("savings-plans report requires an account target (--account-alias or --account)")
 		}
-		status.Step("Fetching Savings Plans data from AWS Cost Explorer…")
-		spReport, err := coresp.Build(cmd.Context(), targets[0].AWSConfig, dateRange)
+		if len(targets) > 1 {
+			status.Step(fmt.Sprintf("Fetching Savings Plans data for %d account(s) from AWS Cost Explorer…", len(targets)))
+		} else {
+			status.Step("Fetching Savings Plans data from AWS Cost Explorer…")
+		}
+		spReport, err := coresp.Build(cmd.Context(), targets, dateRange)
 		if err != nil {
 			return err
 		}
 		status.Step("Rendering HTML report…")
-		accountSummary := reportpkg.FormatAccountSummary(targets)
-		if err := reportpkg.RenderSavingsPlansHTML(out, spReport, accountSummary); err != nil {
+		if err := reportpkg.RenderSavingsPlansHTML(out, spReport); err != nil {
 			return err
 		}
 
