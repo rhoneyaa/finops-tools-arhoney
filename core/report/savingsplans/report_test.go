@@ -295,6 +295,84 @@ func TestBuildAccountWith_CoverageAPIError(t *testing.T) {
 	}
 }
 
+func TestMonthlyCERange(t *testing.T) {
+	t.Run("start aligned to month", func(t *testing.T) {
+		dr := monthlyCERange(cost.DateRange{
+			Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+			End:   time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC),
+		})
+		if got, want := dr.Start.Format("2006-01-02"), "2026-01-01"; got != want {
+			t.Errorf("Start = %q, want %q", got, want)
+		}
+		if got, want := dr.End.Format("2006-01-02"), "2026-06-10"; got != want {
+			t.Errorf("End = %q, want %q (must not extend past caller End)", got, want)
+		}
+	})
+	t.Run("full month end unchanged", func(t *testing.T) {
+		dr := monthlyCERange(cost.DateRange{
+			Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+		})
+		if got, want := dr.End.Format("2006-01-02"), "2026-02-01"; got != want {
+			t.Errorf("End = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestBuildAccountWith_DataUnavailableUtilization(t *testing.T) {
+	fake := &fakeSavingsPlansClient{
+		coverageResp: &costexplorer.GetSavingsPlansCoverageOutput{
+			SavingsPlansCoverages: []types.SavingsPlansCoverage{
+				{
+					TimePeriod: &types.DateInterval{Start: aws.String("2026-01-01"), End: aws.String("2026-02-01")},
+					Coverage:   &types.SavingsPlansCoverageData{CoveragePercentage: aws.String("72.0")},
+				},
+			},
+		},
+		utilizationErr: &types.DataUnavailableException{Message: aws.String("unavailable")},
+	}
+	coverage, utilization, err := buildAccountWith(context.Background(), fake, cost.DateRange{
+		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+	}, nil)
+	if err != nil {
+		t.Fatalf("buildAccountWith returned error: %v", err)
+	}
+	if len(coverage) != 1 {
+		t.Fatalf("Coverage len = %d, want 1", len(coverage))
+	}
+	if len(utilization) != 0 {
+		t.Fatalf("Utilization len = %d, want 0", len(utilization))
+	}
+}
+
+func TestBuildAccountWith_NilCoverageResponse(t *testing.T) {
+	fake := &fakeSavingsPlansClient{
+		coverageResp: nil,
+	}
+	_, _, err := buildAccountWith(context.Background(), fake, cost.DateRange{
+		Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+	}, nil)
+	if err == nil {
+		t.Fatal("expected error for nil coverage response, got nil")
+	}
+}
+
+func TestBuildAccountWith_NilUtilizationResponse(t *testing.T) {
+	fake := &fakeSavingsPlansClient{
+		coverageResp:    &costexplorer.GetSavingsPlansCoverageOutput{},
+		utilizationResp: nil,
+	}
+	_, _, err := buildAccountWith(context.Background(), fake, cost.DateRange{
+		Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+	}, nil)
+	if err == nil {
+		t.Fatal("expected error for nil utilization response, got nil")
+	}
+}
+
 func TestBuildAccountWith_UtilizationAPIError(t *testing.T) {
 	fake := &fakeSavingsPlansClient{
 		coverageResp:   &costexplorer.GetSavingsPlansCoverageOutput{},

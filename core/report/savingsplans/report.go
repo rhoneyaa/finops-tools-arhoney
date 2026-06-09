@@ -3,6 +3,7 @@ package savingsplans
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -78,6 +79,7 @@ func buildWith(ctx context.Context, newClient ceClientFactory, accounts []cost.A
 		return Report{}, fmt.Errorf("at least one account required")
 	}
 	targets := cost.FilterOverlappingTargets(accounts)
+	dr = monthlyCERange(dr)
 	ceClients := make(map[string]SavingsPlansAPI)
 
 	sections := make([]AccountReport, 0, len(targets))
@@ -116,6 +118,7 @@ func buildAccountWith(
 	dr cost.DateRange,
 	filter *types.Expression,
 ) ([]MonthlyMetric, []MonthlyMetric, error) {
+	dr = monthlyCERange(dr)
 	interval := &types.DateInterval{
 		Start: aws.String(dr.Start.Format("2006-01-02")),
 		End:   aws.String(dr.End.Format("2006-01-02")),
@@ -126,8 +129,16 @@ func buildAccountWith(
 		Granularity: types.GranularityMonthly,
 		Filter:      filter,
 	})
+	var coverages []types.SavingsPlansCoverage
 	if err != nil {
-		return nil, nil, fmt.Errorf("fetch SP coverage: %w", err)
+		if !isDataUnavailable(err) {
+			return nil, nil, fmt.Errorf("fetch SP coverage: %w", err)
+		}
+	} else {
+		if coverageResp == nil {
+			return nil, nil, fmt.Errorf("nil response from GetSavingsPlansCoverage")
+		}
+		coverages = coverageResp.SavingsPlansCoverages
 	}
 
 	utilizationResp, err := ce.GetSavingsPlansUtilization(ctx, &costexplorer.GetSavingsPlansUtilizationInput{
@@ -135,13 +146,38 @@ func buildAccountWith(
 		Granularity: types.GranularityMonthly,
 		Filter:      filter,
 	})
+	var utils []types.SavingsPlansUtilizationByTime
 	if err != nil {
-		return nil, nil, fmt.Errorf("fetch SP utilization: %w", err)
+		if !isDataUnavailable(err) {
+			return nil, nil, fmt.Errorf("fetch SP utilization: %w", err)
+		}
+	} else {
+		if utilizationResp == nil {
+			return nil, nil, fmt.Errorf("nil response from GetSavingsPlansUtilization")
+		}
+		utils = utilizationResp.SavingsPlansUtilizationsByTime
 	}
 
-	return parseCoverageMetrics(coverageResp.SavingsPlansCoverages),
-		parseUtilizationMetrics(utilizationResp.SavingsPlansUtilizationsByTime),
-		nil
+	return parseCoverageMetrics(coverages), parseUtilizationMetrics(utils), nil
+}
+
+// monthlyCERange aligns dr to calendar-month boundaries for CE MONTHLY granularity.
+// Start moves to the first day of its month. End (exclusive) moves to the first day of
+// the month after the last included calendar day, but never beyond the caller's End —
+// extending the window past the latest available CE data triggers ValidationException.
+func monthlyCERange(dr cost.DateRange) cost.DateRange {
+	start := time.Date(dr.Start.Year(), dr.Start.Month(), 1, 0, 0, 0, 0, time.UTC)
+	lastIncluded := dr.End.AddDate(0, 0, -1)
+	end := time.Date(lastIncluded.Year(), lastIncluded.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, 1, 0)
+	if end.After(dr.End) {
+		end = dr.End
+	}
+	return cost.DateRange{Start: start, End: end}
+}
+
+func isDataUnavailable(err error) bool {
+	var du *types.DataUnavailableException
+	return errors.As(err, &du)
 }
 
 func accountFilter(acct cost.AccountTarget) *types.Expression {
