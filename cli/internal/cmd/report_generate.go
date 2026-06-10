@@ -10,9 +10,6 @@ import (
 	"github.com/openshift-online/finops-tools/cli/internal/configstore"
 	"github.com/openshift-online/finops-tools/cli/internal/progress"
 	reportpkg "github.com/openshift-online/finops-tools/cli/internal/report"
-	coreaccount "github.com/openshift-online/finops-tools/core/account"
-	"github.com/openshift-online/finops-tools/core/cost"
-	corereport "github.com/openshift-online/finops-tools/core/report"
 	"github.com/spf13/cobra"
 )
 
@@ -96,6 +93,10 @@ func runReportGenerate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	gen, err := reportpkg.GeneratorFor(templateName)
+	if err != nil {
+		return err
+	}
 
 	cfgPath, err := configstore.ResolvePath(awsFlags.ConfigPath)
 	if err != nil {
@@ -134,96 +135,62 @@ func runReportGenerate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if len(targets) == 0 {
-		var out *os.File
-		if path := strings.TrimSpace(reportGenerateOutput); path != "" {
-			f, err := os.Create(path)
-			if err != nil {
-				return fmt.Errorf("create output file: %w", err)
-			}
-			defer f.Close()
-			out = f
-		} else {
-			out = os.Stdout
-		}
-		report := corereport.EmptyCostsReport(cost.CostQuery{
-			Provider: cost.ProviderAWS,
-			Range:    dateRange,
-		}, time.Now().UTC())
-		status.Step("Rendering HTML report…")
-		if err := reportpkg.RenderCostsHTML(out, report); err != nil {
-			return err
-		}
-		if !reportGenerateQuiet {
-			if path := strings.TrimSpace(reportGenerateOutput); path != "" {
-				status.Step(fmt.Sprintf("Wrote report to %s", path))
-			} else {
-				status.Step("Report written to stdout")
-			}
-		}
-		return nil
+	in := reportpkg.GenerateInput{
+		Format:   format,
+		Targets:  targets,
+		Range:    dateRange,
+		Progress: status,
+		Now:      time.Now().UTC(),
 	}
-
-	status.Step("Ensuring AWS credentials…")
-	if err := ensureCostCredentials(cmd.Context(), cmd, cfg, targets, awsFlags.ConfigPath, awsFlags.CredentialsFile, awsFlags.AuthMethod); err != nil {
+	if err := gen.Validate(in); err != nil {
 		return err
 	}
-	if len(targets) <= 1 {
-		status.Step("Preparing account configuration…")
+
+	if len(targets) > 0 {
+		status.Step("Ensuring AWS credentials…")
+		if err := ensureCostCredentials(cmd.Context(), cmd, cfg, targets, awsFlags.ConfigPath, awsFlags.CredentialsFile, awsFlags.AuthMethod); err != nil {
+			return err
+		}
+		if len(targets) <= 1 {
+			status.Step("Preparing account configuration…")
+		}
+		targets, err = prepareCostTargets(cmd.Context(), cfg, targets, awsFlags.CredentialsFile, status)
+		if err != nil {
+			return err
+		}
+		in.Targets = targets
 	}
-	targets, err = prepareCostTargets(cmd.Context(), cfg, targets, awsFlags.CredentialsFile, status)
+
+	out, closeOut, err := openReportGenerateOutput(reportGenerateOutput)
 	if err != nil {
 		return err
 	}
+	if closeOut != nil {
+		defer closeOut()
+	}
+	in.Out = out
 
-	if len(targets) > 1 {
-		status.Step(fmt.Sprintf("Fetching net amortized costs for %d account(s) from AWS Cost Explorer…", len(targets)))
+	if err := gen.Generate(cmd.Context(), in); err != nil {
+		return err
 	}
 
-	costQuery := cost.CostQuery{
-		Provider: cost.ProviderAWS,
-		Accounts: targets,
-		Range:    dateRange,
-		Progress: status,
-		AWSFetch: &cost.AWSFetchOptions{
-			ResolveAccountNames: coreaccount.ResolveAccountNames,
-		},
+	if !reportGenerateQuiet {
+		if path := strings.TrimSpace(reportGenerateOutput); path != "" {
+			status.Step(fmt.Sprintf("Wrote report to %s", path))
+		} else {
+			status.Step("Report written to stdout")
+		}
 	}
+	return nil
+}
 
-	var out *os.File
-	if path := strings.TrimSpace(reportGenerateOutput); path != "" {
+func openReportGenerateOutput(path string) (*os.File, func(), error) {
+	if path = strings.TrimSpace(path); path != "" {
 		f, err := os.Create(path)
 		if err != nil {
-			return fmt.Errorf("create output file: %w", err)
+			return nil, nil, fmt.Errorf("create output file: %w", err)
 		}
-		defer f.Close()
-		out = f
-	} else {
-		out = os.Stdout
+		return f, func() { _ = f.Close() }, nil
 	}
-
-	switch templateName {
-	case reportpkg.TemplateCosts:
-		if format != reportpkg.FormatHTML {
-			return fmt.Errorf("template %q does not support format %q", templateName, format)
-		}
-		report, err := corereport.BuildCostsReport(cmd.Context(), costQuery, status)
-		if err != nil {
-			return err
-		}
-		status.Step("Rendering HTML report…")
-		if err := reportpkg.RenderCostsHTML(out, report); err != nil {
-			return err
-		}
-		if !reportGenerateQuiet {
-			if path := strings.TrimSpace(reportGenerateOutput); path != "" {
-				status.Step(fmt.Sprintf("Wrote report to %s", path))
-			} else {
-				status.Step("Report written to stdout")
-			}
-		}
-		return nil
-	default:
-		return fmt.Errorf("unsupported template %q", templateName)
-	}
+	return os.Stdout, nil, nil
 }

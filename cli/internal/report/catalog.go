@@ -8,6 +8,8 @@ import (
 const (
 	// TemplateCosts is the AWS costs summary report template.
 	TemplateCosts = "costs"
+	// TemplateSavingsPlans is the Savings Plans coverage and utilization report template.
+	TemplateSavingsPlans = "savings-plans"
 	// FormatHTML is the HTML output format.
 	FormatHTML = "html"
 )
@@ -25,6 +27,11 @@ func Templates() []TemplateInfo {
 		{
 			Name:        TemplateCosts,
 			Description: "AWS net amortized cost: total, per linked account, per service, and daily trend",
+			Formats:     []string{FormatHTML},
+		},
+		{
+			Name:        TemplateSavingsPlans,
+			Description: "Savings Plans coverage and utilization by month",
 			Formats:     []string{FormatHTML},
 		},
 	}

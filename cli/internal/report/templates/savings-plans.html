@@ -1,0 +1,77 @@
+{{ define "title" }}Savings Plans Report — {{ .AccountSummary }}{{ end }}
+
+{{ define "content" }}
+<header>
+  <h1>Savings Plans Report</h1>
+  <p class="meta">
+    <strong>Accounts:</strong><br>
+    {{ range .Accounts }}{{ .AccountName }}<br>{{ end }}
+    <strong>Period:</strong> {{ .StartDate }} — {{ .EndDate }}<br>
+    <strong>Generated:</strong> {{ .GeneratedAt }}
+  </p>
+</header>
+
+{{ range .Accounts }}{{ $acct := . }}
+<section class="account-section">
+  <h2>{{ .AccountName }}</h2>
+
+  <section>
+    <h3>Coverage</h3>
+    <p class="meta">Percentage of eligible on-demand spend covered by Savings Plans</p>
+    {{ if .Coverage }}
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Coverage</th>
+          {{ if not $acct.IsLinked }}<th>Status</th>{{ end }}
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Coverage }}
+        <tr>
+          <td>{{ .Month }}</td>
+          <td>{{ .PercentageFormatted }}</td>
+          {{ if not $acct.IsLinked }}<td>{{ .StatusHTML }}</td>{{ end }}
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ else }}
+    <p class="meta">No coverage data available for this period.</p>
+    {{ end }}
+  </section>
+
+  <section>
+    <h3>Utilization</h3>
+    <p class="meta">Percentage of purchased Savings Plans commitment that was used</p>
+    {{ if .Utilization }}
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Utilization</th>
+          {{ if not $acct.IsLinked }}<th>Status</th>{{ end }}
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Utilization }}
+        <tr>
+          <td>{{ .Month }}</td>
+          <td>{{ .PercentageFormatted }}</td>
+          {{ if not $acct.IsLinked }}<td>{{ .StatusHTML }}</td>{{ end }}
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ else }}
+    <p class="meta">No utilization data available for this period.</p>
+    {{ end }}
+  </section>
+</section>
+{{ end }}
+{{ end }}
+
+{{ define "savings-plans" }}
+{{ template "layout" . }}
+{{ end }}

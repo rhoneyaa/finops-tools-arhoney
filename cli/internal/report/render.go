@@ -89,6 +89,11 @@ func breakdownRows(items []cost.CostBreakdownItem, split cost.SplitBy, total flo
 	return rows
 }
 
+// FormatAccountSummary returns a comma-separated display string for a list of account targets.
+func FormatAccountSummary(accounts []cost.AccountTarget) string {
+	return formatAccountSummary(accounts)
+}
+
 func formatAccountSummary(accounts []cost.AccountTarget) string {
 	if len(accounts) == 0 {
 		return ""
