@@ -344,6 +344,47 @@ func TestBuild_MultipleAccounts(t *testing.T) {
 	}
 }
 
+func TestBuild_PreservesRequestedDateRange(t *testing.T) {
+	fake := &fakeSavingsPlansClient{
+		coverageByAccount: map[string]*costexplorer.GetSavingsPlansCoverageOutput{
+			"111111111111": {
+				SavingsPlansCoverages: []types.SavingsPlansCoverage{
+					{
+						TimePeriod: &types.DateInterval{Start: aws.String("2026-01-01"), End: aws.String("2026-02-01")},
+						Coverage:   &types.SavingsPlansCoverageData{CoveragePercentage: aws.String("80.0")},
+					},
+				},
+			},
+		},
+		utilizationByAccount: map[string]*costexplorer.GetSavingsPlansUtilizationOutput{
+			"111111111111": {
+				SavingsPlansUtilizationsByTime: []types.SavingsPlansUtilizationByTime{
+					{
+						TimePeriod:  &types.DateInterval{Start: aws.String("2026-01-01"), End: aws.String("2026-02-01")},
+						Utilization: &types.SavingsPlansUtilization{UtilizationPercentage: aws.String("90.0")},
+					},
+				},
+			},
+		},
+	}
+	dr := cost.DateRange{
+		Start: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC),
+	}
+	report, err := buildWith(context.Background(), func(aws.Config) SavingsPlansAPI { return fake }, []cost.AccountTarget{
+		{AccountID: "111111111111", DisplayName: "Member", PayerAccountID: "123456789012", AWSConfig: aws.Config{}},
+	}, dr)
+	if err != nil {
+		t.Fatalf("buildWith returned error: %v", err)
+	}
+	if report.StartDate != "2026-01-15" {
+		t.Errorf("StartDate = %q, want caller-requested 2026-01-15", report.StartDate)
+	}
+	if report.EndDate != "2026-06-09" {
+		t.Errorf("EndDate = %q, want caller-requested 2026-06-09", report.EndDate)
+	}
+}
+
 func TestBuildAccountWith_CoverageAPIError(t *testing.T) {
 	fake := &fakeSavingsPlansClient{
 		coverageErr: fmt.Errorf("access denied"),

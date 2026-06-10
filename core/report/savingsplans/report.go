@@ -79,7 +79,7 @@ func buildWith(ctx context.Context, newClient ceClientFactory, accounts []cost.A
 	if len(accounts) == 0 {
 		return Report{}, fmt.Errorf("at least one account required")
 	}
-	dr = monthlyCERange(dr)
+	ceDR := monthlyCERange(dr)
 	ceClients := make(map[string]SavingsPlansAPI)
 
 	sections := make([]AccountReport, 0, len(accounts))
@@ -91,7 +91,7 @@ func buildWith(ctx context.Context, newClient ceClientFactory, accounts []cost.A
 			ceClients[credID] = ce
 		}
 
-		coverage, utilization, err := buildAccountWith(ctx, ce, dr, acct)
+		coverage, utilization, err := buildAccountWith(ctx, ce, ceDR, acct)
 		if err != nil {
 			return Report{}, fmt.Errorf("%s: %w", accountDisplayName(acct), err)
 		}
@@ -119,11 +119,11 @@ func buildAccountWith(
 	dr cost.DateRange,
 	acct cost.AccountTarget,
 ) ([]MonthlyMetric, []MonthlyMetric, error) {
-	dr = monthlyCERange(dr)
+	ceDR := monthlyCERange(dr)
 	filter := linkedAccountFilter(acct)
 	interval := &types.DateInterval{
-		Start: aws.String(dr.Start.Format("2006-01-02")),
-		End:   aws.String(dr.End.Format("2006-01-02")),
+		Start: aws.String(ceDR.Start.Format("2006-01-02")),
+		End:   aws.String(ceDR.End.Format("2006-01-02")),
 	}
 
 	coverageResp, err := ce.GetSavingsPlansCoverage(ctx, &costexplorer.GetSavingsPlansCoverageInput{
