@@ -128,7 +128,7 @@ func TestNewSavingsPlansReportView_linkedOmitsStatus(t *testing.T) {
 		StartDate: "2026-01-01",
 		EndDate:   "2026-03-31",
 		Accounts: []coresp.AccountReport{{
-			AccountName: "Quay",
+			AccountName: "Linked Member",
 			IsLinked:    true,
 			Coverage: []coresp.MonthlyMetric{
 				{Month: "2026-01", Percentage: 50.0},
@@ -150,7 +150,7 @@ func TestRenderSavingsPlansHTML_linkedOmitsStatusColumn(t *testing.T) {
 		StartDate:   "2026-01-01",
 		EndDate:     "2026-03-31",
 		Accounts: []coresp.AccountReport{{
-			AccountName: "Quay",
+			AccountName: "Linked Member",
 			IsLinked:    true,
 			Coverage: []coresp.MonthlyMetric{
 				{Month: "2026-01", Percentage: 72.0},
@@ -161,12 +161,15 @@ func TestRenderSavingsPlansHTML_linkedOmitsStatusColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if strings.Contains(out, "Critical") || strings.Contains(out, "Good") || strings.Contains(out, "Low") {
-		t.Errorf("linked account section should not include status labels; got excerpt:\n%s", excerptAround(out, "Quay"))
+	linkedSection := accountSectionHTML(out, "Linked Member")
+	if linkedSection == "" {
+		t.Fatal("output missing Linked Member account section")
 	}
-	quaySection := excerptAround(out, "Quay")
-	if strings.Count(quaySection, "<th>Status</th>") != 0 {
-		t.Errorf("linked account should not render Status column header; got:\n%s", quaySection)
+	if strings.Contains(linkedSection, "Critical") || strings.Contains(linkedSection, "Good") || strings.Contains(linkedSection, "Low") {
+		t.Errorf("linked account section should not include status labels; got:\n%s", linkedSection)
+	}
+	if strings.Count(linkedSection, "<th>Status</th>") != 0 {
+		t.Errorf("linked account should not render Status column header; got:\n%s", linkedSection)
 	}
 }
 
@@ -205,6 +208,38 @@ func assertStatusLabel(t *testing.T, html template.HTML, want string) {
 	}
 }
 
+func accountSectionHTML(html, accountName string) string {
+	marker := "<h2>" + accountName + "</h2>"
+	h2 := strings.Index(html, marker)
+	if h2 < 0 {
+		return ""
+	}
+	start := strings.LastIndex(html[:h2], `<section class="account-section">`)
+	if start < 0 {
+		return ""
+	}
+	segment := html[start:]
+	depth := 0
+	for i := 0; i < len(segment); {
+		nextOpen := strings.Index(segment[i:], "<section")
+		nextClose := strings.Index(segment[i:], "</section>")
+		if nextClose < 0 {
+			return segment
+		}
+		if nextOpen >= 0 && nextOpen < nextClose {
+			depth++
+			i += nextOpen + len("<section")
+			continue
+		}
+		i += nextClose + len("</section>")
+		depth--
+		if depth == 0 {
+			return segment[:i]
+		}
+	}
+	return segment
+}
+
 func excerptAround(s, needle string) string {
 	i := strings.Index(s, needle)
 	if i < 0 {
@@ -219,10 +254,10 @@ func excerptAround(s, needle string) string {
 
 func TestFormatAccountSummary(t *testing.T) {
 	s := formatAccountSummary([]cost.AccountTarget{{
-		DisplayName: "Quay Production",
+		DisplayName: "Member Production",
 		AccountID:   "111111111111",
 	}})
-	if s != "Quay Production" {
+	if s != "Member Production" {
 		t.Errorf("got %q", s)
 	}
 }
