@@ -126,21 +126,9 @@ func buildAccountWith(
 		End:   aws.String(ceDR.End.Format("2006-01-02")),
 	}
 
-	coverageResp, err := ce.GetSavingsPlansCoverage(ctx, &costexplorer.GetSavingsPlansCoverageInput{
-		TimePeriod:  interval,
-		Granularity: types.GranularityMonthly,
-		Filter:      filter,
-	})
-	var coverages []types.SavingsPlansCoverage
+	coverages, err := fetchSavingsPlansCoverage(ctx, ce, interval, filter)
 	if err != nil {
-		if !isDataUnavailable(err) {
-			return nil, nil, fmt.Errorf("fetch SP coverage: %w", err)
-		}
-	} else {
-		if coverageResp == nil {
-			return nil, nil, fmt.Errorf("nil response from GetSavingsPlansCoverage")
-		}
-		coverages = coverageResp.SavingsPlansCoverages
+		return nil, nil, err
 	}
 
 	utilizationResp, err := ce.GetSavingsPlansUtilization(ctx, &costexplorer.GetSavingsPlansUtilizationInput{
@@ -161,6 +149,44 @@ func buildAccountWith(
 	}
 
 	return parseCoverageMetrics(coverages), parseUtilizationMetrics(utils), nil
+}
+
+func fetchSavingsPlansCoverage(
+	ctx context.Context,
+	ce SavingsPlansAPI,
+	interval *types.DateInterval,
+	filter *types.Expression,
+) ([]types.SavingsPlansCoverage, error) {
+	var (
+		coverages []types.SavingsPlansCoverage
+		token     *string
+	)
+
+	for {
+		out, err := ce.GetSavingsPlansCoverage(ctx, &costexplorer.GetSavingsPlansCoverageInput{
+			TimePeriod:  interval,
+			Granularity: types.GranularityMonthly,
+			Filter:      filter,
+			NextToken:   token,
+		})
+		if err != nil {
+			if isDataUnavailable(err) && len(coverages) == 0 {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("fetch SP coverage: %w", err)
+		}
+		if out == nil {
+			return nil, fmt.Errorf("nil response from GetSavingsPlansCoverage")
+		}
+		coverages = append(coverages, out.SavingsPlansCoverages...)
+
+		if out.NextToken == nil || aws.ToString(out.NextToken) == "" {
+			break
+		}
+		token = out.NextToken
+	}
+
+	return coverages, nil
 }
 
 // monthlyCERange aligns dr to calendar-month boundaries for CE MONTHLY granularity.

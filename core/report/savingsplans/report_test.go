@@ -20,6 +20,8 @@ type fakeSavingsPlansClient struct {
 	utilizationErr  error
 
 	coverageByAccount         map[string]*costexplorer.GetSavingsPlansCoverageOutput
+	coveragePages             []*costexplorer.GetSavingsPlansCoverageOutput
+	coveragePageIdx           int
 	utilizationByAccount      map[string]*costexplorer.GetSavingsPlansUtilizationOutput
 	utilizationErrByAccount   map[string]error
 }
@@ -31,6 +33,14 @@ func (f *fakeSavingsPlansClient) GetSavingsPlansCoverage(
 ) (*costexplorer.GetSavingsPlansCoverageOutput, error) {
 	if f.coverageErr != nil {
 		return nil, f.coverageErr
+	}
+	if len(f.coveragePages) > 0 {
+		if f.coveragePageIdx >= len(f.coveragePages) {
+			return &costexplorer.GetSavingsPlansCoverageOutput{}, nil
+		}
+		resp := f.coveragePages[f.coveragePageIdx]
+		f.coveragePageIdx++
+		return resp, nil
 	}
 	if f.coverageByAccount != nil {
 		if resp, ok := f.coverageByAccount[linkedAccountFromFilter(in.Filter)]; ok {
@@ -164,6 +174,56 @@ func TestParseUtilizationMetrics_SortedByMonth(t *testing.T) {
 	}
 	if metrics[1].Month != "2026-03" {
 		t.Errorf("expected sorted: metrics[1].Month = %q, want 2026-03", metrics[1].Month)
+	}
+}
+
+func TestBuildAccountWith_CoveragePagination(t *testing.T) {
+	fake := &fakeSavingsPlansClient{
+		coveragePages: []*costexplorer.GetSavingsPlansCoverageOutput{
+			{
+				SavingsPlansCoverages: []types.SavingsPlansCoverage{
+					{
+						TimePeriod: &types.DateInterval{Start: aws.String("2026-01-01"), End: aws.String("2026-02-01")},
+						Coverage:   &types.SavingsPlansCoverageData{CoveragePercentage: aws.String("72.0")},
+					},
+				},
+				NextToken: aws.String("page-2"),
+			},
+			{
+				SavingsPlansCoverages: []types.SavingsPlansCoverage{
+					{
+						TimePeriod: &types.DateInterval{Start: aws.String("2026-02-01"), End: aws.String("2026-03-01")},
+						Coverage:   &types.SavingsPlansCoverageData{CoveragePercentage: aws.String("80.0")},
+					},
+				},
+			},
+		},
+		utilizationResp: &costexplorer.GetSavingsPlansUtilizationOutput{},
+	}
+
+	dr := cost.DateRange{
+		Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+	}
+
+	coverage, utilization, err := buildAccountWith(context.Background(), fake, dr, cost.AccountTarget{})
+	if err != nil {
+		t.Fatalf("buildAccountWith returned error: %v", err)
+	}
+	if len(utilization) != 0 {
+		t.Fatalf("Utilization len = %d, want 0", len(utilization))
+	}
+	if len(coverage) != 2 {
+		t.Fatalf("Coverage len = %d, want 2", len(coverage))
+	}
+	if coverage[0].Month != "2026-01" || coverage[0].Percentage != 72.0 {
+		t.Errorf("coverage[0] = %+v, want 2026-01 at 72.0", coverage[0])
+	}
+	if coverage[1].Month != "2026-02" || coverage[1].Percentage != 80.0 {
+		t.Errorf("coverage[1] = %+v, want 2026-02 at 80.0", coverage[1])
+	}
+	if fake.coveragePageIdx != 2 {
+		t.Errorf("coveragePageIdx = %d, want 2 API calls", fake.coveragePageIdx)
 	}
 }
 
