@@ -20,8 +20,12 @@ func (costAnomaliesGenerator) Validate(in GenerateInput) error {
 }
 
 func (costAnomaliesGenerator) Generate(ctx context.Context, in GenerateInput) error {
-	in.Progress.Step("Fetching cost anomalies from AWS Cost Anomaly Detection…")
-	caReport, err := coreca.Build(ctx, in.Targets[0].AWSConfig, in.Range)
+	if len(in.Targets) > 1 {
+		in.Progress.Step(fmt.Sprintf("Fetching cost anomalies for %d account(s) from AWS Cost Anomaly Detection…", len(in.Targets)))
+	} else {
+		in.Progress.Step("Fetching cost anomalies from AWS Cost Anomaly Detection…")
+	}
+	caReport, err := coreca.Build(ctx, in.Targets, in.Range)
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -58,31 +59,143 @@ type Report struct {
 }
 
 // Build fetches cost anomalies from AWS Cost Anomaly Detection for the given
-// date range, using cfg for authentication. Anomalies are sorted by total
-// dollar impact descending.
-func Build(ctx context.Context, cfg aws.Config, dr cost.DateRange) (Report, error) {
-	cfg.Region = costExplorerRegion
-	ce := costexplorer.NewFromConfig(cfg, func(o *costexplorer.Options) {
-		o.Region = costExplorerRegion
-	})
-	return buildWith(ctx, ce, dr)
+// accounts and date range. When multiple linked accounts or OUs are selected,
+// anomalies are limited to those accounts. A single unscoped payer target
+// returns organization-wide anomalies. Results are sorted by total dollar
+// impact descending.
+func Build(ctx context.Context, accounts []cost.AccountTarget, dr cost.DateRange) (Report, error) {
+	return buildWith(ctx, defaultCEClientFactory, accounts, dr)
 }
 
-// buildWith is the testable core: accepts any CostAnomaliesAPI implementation.
-func buildWith(ctx context.Context, ce CostAnomaliesAPI, dr cost.DateRange) (Report, error) {
-	raw, err := fetchAll(ctx, ce, dr)
-	if err != nil {
-		return Report{}, err
+type ceClientFactory func(cfg aws.Config) CostAnomaliesAPI
+
+func defaultCEClientFactory(cfg aws.Config) CostAnomaliesAPI {
+	region := cfg.Region
+	if region == "" {
+		region = costExplorerRegion
+	}
+	cfg.Region = region
+	return costexplorer.NewFromConfig(cfg, func(o *costexplorer.Options) {
+		o.Region = costExplorerRegion
+	})
+}
+
+// buildWith is the testable core: accepts any CostAnomaliesAPI factory.
+func buildWith(ctx context.Context, newClient ceClientFactory, accounts []cost.AccountTarget, dr cost.DateRange) (Report, error) {
+	if len(accounts) == 0 {
+		return Report{}, fmt.Errorf("at least one account required")
 	}
 
-	anomalies := parseAnomalies(raw)
+	ceClients := make(map[string]CostAnomaliesAPI)
+	seenAnomalies := make(map[string]struct{})
+	all := make([]Anomaly, 0)
+
+	for _, group := range groupAccountsByCredentials(accounts) {
+		credID := group[0].CredentialsAccountID()
+		ce, ok := ceClients[credID]
+		if !ok {
+			ce = newClient(group[0].AWSConfig)
+			ceClients[credID] = ce
+		}
+
+		raw, err := fetchAll(ctx, ce, dr)
+		if err != nil {
+			return Report{}, fmt.Errorf("%s: %w", accountDisplayName(group[0]), err)
+		}
+
+		anomalies := parseAnomalies(raw)
+		anomalies = filterAnomaliesForAccounts(anomalies, accountFilterSet(group))
+
+		for _, a := range anomalies {
+			if _, ok := seenAnomalies[a.ID]; ok {
+				continue
+			}
+			seenAnomalies[a.ID] = struct{}{}
+			all = append(all, a)
+		}
+	}
+
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].TotalImpact > all[j].TotalImpact
+	})
 
 	return Report{
 		GeneratedAt: time.Now().UTC(),
 		StartDate:   dr.Start.Format("2006-01-02"),
 		EndDate:     dr.End.AddDate(0, 0, -1).Format("2006-01-02"),
-		Anomalies:   anomalies,
+		Anomalies:   all,
 	}, nil
+}
+
+func groupAccountsByCredentials(accounts []cost.AccountTarget) [][]cost.AccountTarget {
+	order := make([]string, 0)
+	groups := make(map[string][]cost.AccountTarget)
+	for _, acct := range accounts {
+		credID := acct.CredentialsAccountID()
+		if _, ok := groups[credID]; !ok {
+			order = append(order, credID)
+		}
+		groups[credID] = append(groups[credID], acct)
+	}
+	out := make([][]cost.AccountTarget, 0, len(order))
+	for _, credID := range order {
+		out = append(out, groups[credID])
+	}
+	return out
+}
+
+// accountFilterSet returns selected account IDs when the caller narrowed scope
+// (multiple targets or a single scoped/linked account). A lone unscoped payer
+// returns nil so organization-wide anomalies are kept.
+func accountFilterSet(accounts []cost.AccountTarget) map[string]struct{} {
+	if len(accounts) == 1 && !accounts[0].ScopeToAccount() {
+		return nil
+	}
+	set := make(map[string]struct{}, len(accounts))
+	for _, acct := range accounts {
+		if id := strings.TrimSpace(acct.AccountID); id != "" {
+			set[id] = struct{}{}
+		}
+	}
+	return set
+}
+
+func filterAnomaliesForAccounts(anomalies []Anomaly, accountIDs map[string]struct{}) []Anomaly {
+	if len(accountIDs) == 0 {
+		return anomalies
+	}
+
+	filtered := make([]Anomaly, 0, len(anomalies))
+	for _, a := range anomalies {
+		if len(a.RootCauses) == 0 {
+			continue
+		}
+		causes := make([]RootCause, 0, len(a.RootCauses))
+		for _, rc := range a.RootCauses {
+			if _, ok := accountIDs[rc.Account]; ok {
+				causes = append(causes, rc)
+			}
+		}
+		if len(causes) == 0 {
+			continue
+		}
+		a.RootCauses = causes
+		if a.Service == "" {
+			a.Service = causes[0].Service
+		}
+		filtered = append(filtered, a)
+	}
+	return filtered
+}
+
+func accountDisplayName(acct cost.AccountTarget) string {
+	if name := strings.TrimSpace(acct.DisplayName); name != "" {
+		return name
+	}
+	if alias := strings.TrimSpace(acct.DisplayAlias); alias != "" {
+		return alias
+	}
+	return strings.TrimSpace(acct.AccountID)
 }
 
 // fetchAll paginates through GetAnomalies until all results are collected.

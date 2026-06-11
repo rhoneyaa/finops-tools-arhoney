@@ -66,6 +66,22 @@ var testDateRange = cost.DateRange{
 	End:   time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 }
 
+func payerTarget(id string) cost.AccountTarget {
+	return cost.AccountTarget{AccountID: id, AWSConfig: aws.Config{}}
+}
+
+func linkedTarget(id, payerID string) cost.AccountTarget {
+	return cost.AccountTarget{
+		AccountID:      id,
+		PayerAccountID: payerID,
+		AWSConfig:      aws.Config{},
+	}
+}
+
+func fakeFactory(fake *fakeAnomaliesClient) ceClientFactory {
+	return func(aws.Config) CostAnomaliesAPI { return fake }
+}
+
 func TestBuildWith_HappyPath(t *testing.T) {
 	fake := &fakeAnomaliesClient{
 		pages: [][]types.Anomaly{
@@ -78,7 +94,7 @@ func TestBuildWith_HappyPath(t *testing.T) {
 		},
 	}
 
-	report, err := buildWith(context.Background(), fake, testDateRange)
+	report, err := buildWith(context.Background(), fakeFactory(fake), []cost.AccountTarget{payerTarget("123456789012")}, testDateRange)
 	if err != nil {
 		t.Fatalf("buildWith returned error: %v", err)
 	}
@@ -119,7 +135,7 @@ func TestBuildWith_Pagination(t *testing.T) {
 		},
 	}
 
-	report, err := buildWith(context.Background(), fake, testDateRange)
+	report, err := buildWith(context.Background(), fakeFactory(fake), []cost.AccountTarget{payerTarget("123456789012")}, testDateRange)
 	if err != nil {
 		t.Fatalf("buildWith returned error: %v", err)
 	}
@@ -135,7 +151,7 @@ func TestBuildWith_EmptyResult(t *testing.T) {
 	fake := &fakeAnomaliesClient{
 		pages: [][]types.Anomaly{{}},
 	}
-	report, err := buildWith(context.Background(), fake, testDateRange)
+	report, err := buildWith(context.Background(), fakeFactory(fake), []cost.AccountTarget{payerTarget("123456789012")}, testDateRange)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -148,7 +164,7 @@ func TestBuildWith_APIError(t *testing.T) {
 	fake := &fakeAnomaliesClient{
 		err: fmt.Errorf("access denied"),
 	}
-	_, err := buildWith(context.Background(), fake, testDateRange)
+	_, err := buildWith(context.Background(), fakeFactory(fake), []cost.AccountTarget{payerTarget("123456789012")}, testDateRange)
 	if err == nil {
 		t.Fatal("expected error from API failure, got nil")
 	}
@@ -165,7 +181,7 @@ func TestBuildWith_SkipsNilRequiredFields(t *testing.T) {
 			},
 		},
 	}
-	report, err := buildWith(context.Background(), fake, testDateRange)
+	report, err := buildWith(context.Background(), fakeFactory(fake), []cost.AccountTarget{payerTarget("123456789012")}, testDateRange)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -193,7 +209,7 @@ func TestBuildWith_RootCauses(t *testing.T) {
 		},
 	}
 
-	report, err := buildWith(context.Background(), fake, testDateRange)
+	report, err := buildWith(context.Background(), fakeFactory(fake), []cost.AccountTarget{payerTarget("123456789012")}, testDateRange)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -234,7 +250,7 @@ func TestBuildWith_ServiceFallsBackToRootCause(t *testing.T) {
 	fake := &fakeAnomaliesClient{
 		pages: [][]types.Anomaly{{a}},
 	}
-	report, err := buildWith(context.Background(), fake, testDateRange)
+	report, err := buildWith(context.Background(), fakeFactory(fake), []cost.AccountTarget{payerTarget("123456789012")}, testDateRange)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -243,6 +259,101 @@ func TestBuildWith_ServiceFallsBackToRootCause(t *testing.T) {
 	}
 	if report.Anomalies[0].Service != "Amazon RDS" {
 		t.Errorf("Service = %q, want Amazon RDS (fallback from root cause)", report.Anomalies[0].Service)
+	}
+}
+
+func TestBuildWith_FiltersMultipleLinkedAccounts(t *testing.T) {
+	causesA := []types.RootCause{{
+		LinkedAccount: aws.String("111111111111"),
+		Service:       aws.String("Amazon EC2"),
+		Impact:        &types.RootCauseImpact{Contribution: 900.0},
+	}}
+	causesB := []types.RootCause{{
+		LinkedAccount: aws.String("222222222222"),
+		Service:       aws.String("Amazon S3"),
+		Impact:        &types.RootCauseImpact{Contribution: 400.0},
+	}}
+	causesBoth := []types.RootCause{
+		{
+			LinkedAccount: aws.String("111111111111"),
+			Service:       aws.String("Amazon RDS"),
+			Impact:        &types.RootCauseImpact{Contribution: 300.0},
+		},
+		{
+			LinkedAccount: aws.String("222222222222"),
+			Service:       aws.String("Amazon RDS"),
+			Impact:        &types.RootCauseImpact{Contribution: 200.0},
+		},
+	}
+
+	fake := &fakeAnomaliesClient{
+		pages: [][]types.Anomaly{{
+			makeAnomaly("anom-a", "Amazon EC2", "2026-05-01", "2026-05-02", 900.0, 1800.0, 900.0, 100.0, 0.9, causesA),
+			makeAnomaly("anom-b", "Amazon S3", "2026-05-03", "2026-05-04", 400.0, 800.0, 400.0, 100.0, 0.8, causesB),
+			makeAnomaly("anom-both", "Amazon RDS", "2026-05-05", "2026-05-06", 500.0, 1000.0, 500.0, 100.0, 0.7, causesBoth),
+		}},
+	}
+
+	targets := []cost.AccountTarget{
+		linkedTarget("111111111111", "123456789012"),
+		linkedTarget("222222222222", "123456789012"),
+	}
+	report, err := buildWith(context.Background(), fakeFactory(fake), targets, testDateRange)
+	if err != nil {
+		t.Fatalf("buildWith returned error: %v", err)
+	}
+	if len(report.Anomalies) != 3 {
+		t.Fatalf("expected 3 anomalies for both linked accounts, got %d", len(report.Anomalies))
+	}
+	if report.Anomalies[0].ID != "anom-a" {
+		t.Errorf("Anomalies[0].ID = %q, want anom-a", report.Anomalies[0].ID)
+	}
+	var both *Anomaly
+	for i := range report.Anomalies {
+		if report.Anomalies[i].ID == "anom-both" {
+			both = &report.Anomalies[i]
+			break
+		}
+	}
+	if both == nil {
+		t.Fatal("expected anom-both in filtered results")
+	}
+	if len(both.RootCauses) != 2 {
+		t.Errorf("anom-both should keep both root causes, got %d", len(both.RootCauses))
+	}
+}
+
+func TestBuildWith_FiltersSingleLinkedAccount(t *testing.T) {
+	causes := []types.RootCause{
+		{
+			LinkedAccount: aws.String("111111111111"),
+			Service:       aws.String("Amazon EC2"),
+			Impact:        &types.RootCauseImpact{Contribution: 500.0},
+		},
+		{
+			LinkedAccount: aws.String("222222222222"),
+			Service:       aws.String("Amazon S3"),
+			Impact:        &types.RootCauseImpact{Contribution: 300.0},
+		},
+	}
+	fake := &fakeAnomaliesClient{
+		pages: [][]types.Anomaly{{
+			makeAnomaly("anom-mixed", "Amazon EC2", "2026-05-01", "2026-05-02", 800.0, 1600.0, 800.0, 100.0, 0.9, causes),
+		}},
+	}
+
+	report, err := buildWith(context.Background(), fakeFactory(fake), []cost.AccountTarget{linkedTarget("111111111111", "123456789012")}, testDateRange)
+	if err != nil {
+		t.Fatalf("buildWith returned error: %v", err)
+	}
+	if len(report.Anomalies) != 1 {
+		t.Fatalf("expected 1 anomaly, got %d", len(report.Anomalies))
+	}
+	if len(report.Anomalies[0].RootCauses) != 1 {
+		t.Fatalf("expected 1 root cause after filtering, got %d", len(report.Anomalies[0].RootCauses))
+	}
+	if report.Anomalies[0].RootCauses[0].Account != "111111111111" {
+		t.Errorf("root cause account = %q, want 111111111111", report.Anomalies[0].RootCauses[0].Account)
 	}
 }
 
