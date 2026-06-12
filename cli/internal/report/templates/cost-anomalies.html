@@ -63,6 +63,7 @@
         <th>Service / Dimension</th>
         <th>Period</th>
         <th class="amount">Impact</th>
+        <th class="percent">Impact %</th>
         <th class="amount">Actual Spend</th>
         <th class="amount">Expected Spend</th>
         <th>Score</th>
@@ -104,6 +105,7 @@
         </td>
         <td>{{ .PeriodDisplay }}</td>
         <td class="amount impact-positive">{{ .TotalImpactFormatted }}</td>
+        <td class="percent impact-positive">{{ .ImpactPctFormatted }}</td>
         <td class="amount">{{ .ActualSpendFormatted }}</td>
         <td class="amount">{{ .ExpectedSpendFormatted }}</td>
         <td>

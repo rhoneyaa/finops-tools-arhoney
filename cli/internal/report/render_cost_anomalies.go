@@ -52,6 +52,7 @@ type AnomalyView struct {
 	ExpectedSpend          float64
 	ExpectedSpendFormatted string
 	ImpactPct              float64
+	ImpactPctFormatted     string
 	Severity               string
 	SeverityClass          string
 	RootCauseSummary       string
@@ -154,6 +155,7 @@ func anomalyToView(a coreca.Anomaly, currency string) AnomalyView {
 		ExpectedSpend:          a.ExpectedSpend,
 		ExpectedSpendFormatted: format.FormatMoney(a.ExpectedSpend, currency),
 		ImpactPct:              a.ImpactPct,
+		ImpactPctFormatted:     fmt.Sprintf("%.1f%%", a.ImpactPct),
 		Severity:               severity,
 		SeverityClass:          severityClass,
 		RootCauseSummary:       rootCauseSummary,
