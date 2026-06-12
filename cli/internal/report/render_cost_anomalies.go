@@ -10,8 +10,6 @@ import (
 	coreca "github.com/openshift-online/finops-tools/core/report/costanomalies"
 )
 
-const costAnomaliesTemplate = "cost-anomalies"
-
 var (
 	caTplOnce sync.Once
 	caTpl     *template.Template
@@ -184,7 +182,7 @@ func RenderCostAnomaliesHTML(w io.Writer, r coreca.Report, accountSummary string
 		return fmt.Errorf("compile cost-anomalies template: %w", err)
 	}
 	view := NewCostAnomaliesReportView(r, accountSummary)
-	if err := t.ExecuteTemplate(w, costAnomaliesTemplate, view); err != nil {
+	if err := t.ExecuteTemplate(w, TemplateCostAnomalies, view); err != nil {
 		return fmt.Errorf("render cost-anomalies template: %w", err)
 	}
 	return nil
