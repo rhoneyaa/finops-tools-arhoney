@@ -171,15 +171,18 @@ func filterAnomaliesForAccounts(anomalies []Anomaly, accountIDs map[string]struc
 			continue
 		}
 		causes := make([]RootCause, 0, len(a.RootCauses))
+		var totalImpact float64
 		for _, rc := range a.RootCauses {
 			if _, ok := accountIDs[rc.Account]; ok {
 				causes = append(causes, rc)
+				totalImpact += rc.Contribution
 			}
 		}
 		if len(causes) == 0 {
 			continue
 		}
 		a.RootCauses = causes
+		a.TotalImpact = totalImpact
 		if a.Service == "" {
 			a.Service = causes[0].Service
 		}

@@ -355,6 +355,9 @@ func TestBuildWith_FiltersSingleLinkedAccount(t *testing.T) {
 	if report.Anomalies[0].RootCauses[0].Account != "111111111111" {
 		t.Errorf("root cause account = %q, want 111111111111", report.Anomalies[0].RootCauses[0].Account)
 	}
+	if report.Anomalies[0].TotalImpact != 500.0 {
+		t.Errorf("TotalImpact = %f, want 500.0 (sum of filtered root-cause contributions)", report.Anomalies[0].TotalImpact)
+	}
 }
 
 func TestParseAnomalies_SortedByImpactDesc(t *testing.T) {
