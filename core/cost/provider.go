@@ -231,8 +231,8 @@ func EmptyResult(provider Provider, dr DateRange, groupBy GroupBy) CostResult {
 		Provider:  provider,
 		Metric:    MetricNetAmortized,
 		GroupBy:   groupBy,
-		StartDate: formatDate(dr.Start),
-		EndDate:   formatDate(endInclusive),
+		StartDate: FormatDate(dr.Start),
+		EndDate:   FormatDate(endInclusive),
 	}
 }
 
